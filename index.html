@@ -35,9 +35,6 @@
         /* フォーム・UI部品 */
         label { display: block; margin-top: 15px; font-weight: bold; font-size: 14px; }
         input[type="text"] { width: 100%; padding: 12px; margin-top: 5px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; }
-        .checkbox-group { background: white; padding: 15px; border-radius: 6px; margin-top: 10px; border: 1px solid #ddd; }
-        .checkbox-group label { margin-top: 0; margin-bottom: 10px; display: flex; align-items: center; font-weight: normal; }
-        .checkbox-group input { margin-right: 10px; transform: scale(1.5); }
         
         /* フライトボタン */
         .btn-main { width: 100%; height: 100px; font-size: 28px; font-weight: bold; border-radius: 12px; border: none; cursor: pointer; margin-top: 20px; color: white; transition: 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
@@ -48,11 +45,21 @@
         .info-panel { background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         #map { height: 200px; border-radius: 6px; margin-top: 10px; background: #eaeaea; }
         
-        /* テーブル・出力ボタン */
+        /* テーブル全般 */
         table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; font-size: 12px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; vertical-align: middle; }
         th { background-color: #f2f2f2; }
+        
+        /* 点検記録テーブル特有 */
+        .inspection-table td { padding: 4px; }
+        .inspection-table input[type="text"] { margin-top: 0; padding: 6px; font-size: 12px; }
+        .radio-group { display: flex; justify-content: space-around; }
+        .radio-group label { margin-top: 0; font-weight: normal; font-size: 12px; display: flex; align-items: center; }
+        .radio-group input { margin-right: 4px; }
+
+        /* 出力ボタン */
         .export-btn { width: 48%; padding: 15px; margin-top: 15px; font-size: 16px; border: none; border-radius: 6px; cursor: pointer; background: var(--primary); color: white; }
+        .export-btn-full { width: 100%; padding: 15px; margin-top: 15px; font-size: 16px; border: none; border-radius: 6px; cursor: pointer; background: #e83e8c; color: white; }
     </style>
 </head>
 <body>
@@ -69,14 +76,15 @@
         <!-- ① 基本情報タブ -->
         <div id="tab-info" class="tab-content active">
             <h2>操縦者・機体情報</h2>
+            <p style="font-size: 12px; color: #666;">※お客様共有用のデモアプリのため、個人情報は入力せずにお試しください。</p>
             <label>機体登録番号 (REGISTRATION ID)</label>
-            <input type="text" id="regId" placeholder="例: JU1234567890" onchange="saveInfo()">
+            <input type="text" id="regId" placeholder="例: JUXXXXXXXXXX" onchange="saveInfo()">
             
             <label>操縦者氏名 (PILOT NAME)</label>
-            <input type="text" id="pilotName" placeholder="例: 石澤 直樹" onchange="saveInfo()">
+            <input type="text" id="pilotName" placeholder="例: 航空 太郎" onchange="saveInfo()">
             
             <label>許可承認番号</label>
-            <input type="text" id="permitNo" placeholder="例: 東空運第0000号" onchange="saveInfo()">
+            <input type="text" id="permitNo" placeholder="例: 〇空運航第0000号" onchange="saveInfo()">
             
             <label>承認事項</label>
             <input type="text" id="permitItems" placeholder="例: DID上空, 目視外, 夜間" onchange="saveInfo()">
@@ -84,18 +92,24 @@
 
         <!-- ② 飛行前点検タブ (様式2ベース) -->
         <div id="tab-check" class="tab-content">
-            <h2>飛行前点検 (様式2)</h2>
-            <div class="checkbox-group" id="checklist">
-                <label><input type="checkbox" class="chk-item"> 機体全般 (ネジ、コネクタ等)</label>
-                <label><input type="checkbox" class="chk-item"> プロペラ (外観、損傷)</label>
-                <label><input type="checkbox" class="chk-item"> フレーム (外観、損傷)</label>
-                <label><input type="checkbox" class="chk-item"> 通信系統 (通信品質の健全性)</label>
-                <label><input type="checkbox" class="chk-item"> 推進系統 (モーターの健全性)</label>
-                <label><input type="checkbox" class="chk-item"> 電源系統 (バッテリー充電状況)</label>
-                <label><input type="checkbox" class="chk-item"> 自動制御系統 (飛行制御装置)</label>
-                <label><input type="checkbox" class="chk-item"> 操縦装置 (スティック・スイッチ)</label>
+            <div id="print-check-area" style="background: white; padding: 10px; border-radius: 8px;">
+                <h2 style="text-align: center;">飛行前点検記録 (様式2ベース)</h2>
+                <div style="font-size: 12px; margin-bottom: 10px;" id="check-header-info"></div>
+                
+                <table class="inspection-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 35%;">点検項目</th>
+                            <th style="width: 25%;">状態</th>
+                            <th style="width: 40%;">摘要 (不具合等)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inspection-body">
+                        <!-- JSで動的に生成 -->
+                    </tbody>
+                </table>
             </div>
-            <button class="export-btn" style="width: 100%; margin-top: 20px;" onclick="saveChecklist()">点検完了を記録</button>
+            <button class="export-btn-full" onclick="exportChecklistPDF()">点検記録をPDF出力</button>
         </div>
 
         <!-- ③ フライト実行・④ 気象・地図タブ -->
@@ -104,6 +118,7 @@
                 <h3 style="margin-top:0;">現在地と気象情報</h3>
                 <div id="weather-info">位置情報を取得中...</div>
                 <div id="map"></div>
+                <div style="font-size: 10px; text-align: right; margin-top: 4px;">出典: 国土地理院</div>
             </div>
             
             <div class="info-panel" style="text-align: center;">
@@ -115,30 +130,32 @@
         </div>
 
         <!-- 記録・出力タブ -->
-        <div id="tab-export" class="tab-content" id="print-area">
-            <h2>飛行記録 (様式1ベース)</h2>
-            <div style="font-size: 14px; margin-bottom: 10px;">
-                総飛行時間: <span id="total-flight-time">0分</span><br>
-                トータル回数: <span id="total-flight-count">0回</span>
-            </div>
-            
-            <div style="overflow-x: auto;">
-                <table id="logTable">
-                    <thead>
-                        <tr>
-                            <th>日付</th>
-                            <th>離陸時刻</th>
-                            <th>着陸時刻</th>
-                            <th>飛行時間</th>
-                        </tr>
-                    </thead>
-                    <tbody id="logBody"></tbody>
-                </table>
+        <div id="tab-export" class="tab-content">
+            <div id="print-log-area" style="background: white; padding: 10px; border-radius: 8px;">
+                <h2 style="text-align: center;">飛行記録 (様式1ベース)</h2>
+                <div style="font-size: 12px; margin-bottom: 10px;">
+                    総飛行時間: <span id="total-flight-time">0分0秒</span><br>
+                    トータル回数: <span id="total-flight-count">0回</span>
+                </div>
+                
+                <div style="overflow-x: auto;">
+                    <table id="logTable">
+                        <thead>
+                            <tr>
+                                <th>日付</th>
+                                <th>離陸時刻</th>
+                                <th>着陸時刻</th>
+                                <th>飛行時間</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logBody"></tbody>
+                    </table>
+                </div>
             </div>
 
             <div style="display: flex; justify-content: space-between; margin-top: 20px;">
                 <button class="export-btn" onclick="exportCSV()">CSV出力</button>
-                <button class="export-btn" onclick="exportPDF()" style="background: #e83e8c;">PDF出力</button>
+                <button class="export-btn" onclick="exportLogPDF()" style="background: #e83e8c;">PDF出力</button>
             </div>
         </div>
     </div>
@@ -150,9 +167,22 @@
         let timerInterval = null;
         let map = null;
 
+        // 点検項目マスターデータ
+        const inspectionItems = [
+            { id: "gen", name: "機体全般 (ネジ・コネクタ等)" },
+            { id: "prop", name: "プロペラ (外観・損傷)" },
+            { id: "frame", name: "フレーム (外観・損傷)" },
+            { id: "comms", name: "通信系統 (品質・健全性)" },
+            { id: "propul", name: "推進系統 (モーター等)" },
+            { id: "power", name: "電源系統 (バッテリー等)" },
+            { id: "auto", name: "自動制御系統 (飛行制御)" },
+            { id: "ctrl", name: "操縦装置 (スティック等)" }
+        ];
+
         // --- 初期化処理 ---
         window.onload = () => {
             loadInfo();
+            renderInspectionTable();
             updateLogTable();
             initLocationAndWeather();
         };
@@ -164,9 +194,11 @@
             document.getElementById(tabId).classList.add('active');
             event.currentTarget.classList.add('active');
             
-            // 地図タブが開かれた時に地図を再描画（Leafletの仕様対策）
             if(tabId === 'tab-flight' && map != null) {
                 setTimeout(() => map.invalidateSize(), 100);
+            }
+            if(tabId === 'tab-check') {
+                updateChecklistHeader();
             }
         }
 
@@ -179,6 +211,7 @@
                 permitItems: document.getElementById('permitItems').value
             };
             localStorage.setItem('uav_info', JSON.stringify(info));
+            updateChecklistHeader();
         }
 
         function loadInfo() {
@@ -189,40 +222,73 @@
             if(info.permitItems) document.getElementById('permitItems').value = info.permitItems;
         }
 
-        // --- ② 飛行前点検の記録 ---
-        function saveChecklist() {
-            const checks = document.querySelectorAll('.chk-item');
-            let allChecked = true;
-            checks.forEach(chk => { if(!chk.checked) allChecked = false; });
-            
-            if(!allChecked) {
-                alert("未確認の項目があります。すべて点検してください。");
-                return;
-            }
-            alert("飛行前点検を記録しました。フライトタブへ移動します。");
-            openTab('tab-flight');
-            document.querySelectorAll('.tab-link')[2].classList.add('active');
-            document.querySelectorAll('.tab-link')[1].classList.remove('active');
+        // --- ② 飛行前点検テーブルの描画 ---
+        function renderInspectionTable() {
+            const tbody = document.getElementById('inspection-body');
+            tbody.innerHTML = '';
+            inspectionItems.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="text-align: left; font-size: 11px;">${item.name}</td>
+                    <td>
+                        <div class="radio-group">
+                            <label><input type="radio" name="chk_${item.id}" value="良" checked>良</label>
+                            <label><input type="radio" name="chk_${item.id}" value="不良">不良</label>
+                        </div>
+                    </td>
+                    <td><input type="text" placeholder="異常があれば記載"></td>
+                `;
+                tbody.appendChild(tr);
+            });
         }
 
-        // --- ④ 位置情報と気象API (Open-Meteo) ---
+        function updateChecklistHeader() {
+            const info = JSON.parse(localStorage.getItem('uav_info') || '{}');
+            const today = new Date().toLocaleDateString();
+            document.getElementById('check-header-info').innerHTML = `
+                実施日: ${today} <br>
+                操縦者: ${info.pilotName || '未入力'} <br>
+                機体登録番号: ${info.regId || '未入力'}
+            `;
+        }
+
+        function exportChecklistPDF() {
+            const element = document.getElementById('print-check-area');
+            
+            // PDF出力時にinputタグの見た目を整えるための前処理
+            const inputs = element.querySelectorAll('input[type="text"]');
+            inputs.forEach(input => {
+                input.setAttribute('value', input.value); 
+            });
+
+            const opt = {
+                margin:       10,
+                filename:     `InspectionLog_${new Date().toLocaleDateString().replace(/\//g, '')}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, windowWidth: 800 },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+            html2pdf().set(opt).from(element).save();
+        }
+
+        // --- ④ 位置情報と気象API (国土地理院地図へ変更) ---
         function initLocationAndWeather() {
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(position => {
                     const lat = position.coords.latitude;
                     const lon = position.coords.longitude;
                     
-                    // 地図の表示
+                    // 地図の表示 (国土地理院 標準地図)
                     if(!map) {
                         map = L.map('map').setView([lat, lon], 15);
-                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                            attribution: '© OpenStreetMap'
+                        L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', {
+                            attribution: "<a href='https://maps.gsi.go.jp/development/ichiran.html' target='_blank'>国土地理院</a>",
+                            maxZoom: 18
                         }).addTo(map);
-                        L.marker([lat, lon]).addTo(map)
-                            .bindPopup('現在地').openPopup();
+                        L.marker([lat, lon]).addTo(map).bindPopup('現在地').openPopup();
                     }
 
-                    // 気象情報の取得 (Open-Meteo: 認証不要API)
+                    // 気象情報の取得 (Open-Meteo)
                     fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&windspeed_unit=ms`)
                         .then(response => response.json())
                         .then(data => {
@@ -230,24 +296,17 @@
                             document.getElementById('weather-info').innerHTML = 
                                 `<strong>気温:</strong> ${cw.temperature}℃ | <strong>風速:</strong> ${cw.windspeed} m/s <br>
                                  <small>座標: ${lat.toFixed(4)}, ${lon.toFixed(4)}</small>`;
-                        })
-                        .catch(() => {
-                            document.getElementById('weather-info').innerText = "気象情報の取得に失敗しました。";
                         });
-
-                }, () => {
-                    document.getElementById('weather-info').innerText = "位置情報の取得が許可されていません。";
                 });
             }
         }
 
-        // --- ③ フライト記録ロジック ---
+        // --- ③ フライト記録ロジック (秒単位対応) ---
         function toggleFlight() {
             const btn = document.getElementById('actionBtn');
             const statusText = document.getElementById('flight-status');
             
             if (!isFlying) {
-                // 離陸処理
                 isFlying = true;
                 takeoffTime = new Date();
                 btn.innerText = "LANDING (着陸)";
@@ -255,7 +314,6 @@
                 statusText.innerText = "飛行中";
                 statusText.style.color = "var(--danger)";
                 
-                // ストップウォッチ開始
                 timerInterval = setInterval(() => {
                     const now = new Date();
                     const diff = new Date(now - takeoffTime);
@@ -264,30 +322,26 @@
                     const s = String(diff.getUTCSeconds()).padStart(2, '0');
                     document.getElementById('stopwatch').innerText = `${h}:${m}:${s}`;
                 }, 1000);
-
             } else {
-                // 着陸処理
                 isFlying = false;
                 const landingTime = new Date();
                 clearInterval(timerInterval);
                 
-                // 飛行時間の計算 (分)
-                const durationMs = landingTime - takeoffTime;
-                const durationMinutes = Math.max(1, Math.round(durationMs / 60000)); // 最低1分
+                // 飛行時間の計算 (秒単位)
+                const MathRound = Math.round;
+                const durationSeconds = MathRound((landingTime - takeoffTime) / 1000);
                 
-                // データの保存
                 const log = {
                     date: takeoffTime.toLocaleDateString(),
                     takeoff: takeoffTime.toLocaleTimeString(),
                     landing: landingTime.toLocaleTimeString(),
-                    duration: durationMinutes
+                    durationSec: durationSeconds
                 };
                 
                 const logs = JSON.parse(localStorage.getItem('uav_logs') || '[]');
                 logs.push(log);
                 localStorage.setItem('uav_logs', JSON.stringify(logs));
                 
-                // UIリセット
                 btn.innerText = "TAKE OFF (離陸)";
                 btn.className = "btn-main btn-takeoff";
                 statusText.innerText = "待機中";
@@ -295,43 +349,52 @@
                 document.getElementById('stopwatch').innerText = "00:00:00";
                 
                 updateLogTable();
-                alert(`フライト完了！飛行時間: ${durationMinutes}分を記録しました。`);
             }
         }
 
-        // --- テーブル更新と集計 ---
+        // --- テーブル更新と集計 (秒単位フォーマット) ---
+        function formatTimeFromSeconds(totalSec) {
+            const h = Math.floor(totalSec / 3600);
+            const m = Math.floor((totalSec % 3600) / 60);
+            const s = totalSec % 60;
+            if (h > 0) return `${h}時間 ${m}分 ${s}秒`;
+            if (m > 0) return `${m}分 ${s}秒`;
+            return `${s}秒`;
+        }
+
         function updateLogTable() {
             const logs = JSON.parse(localStorage.getItem('uav_logs') || '[]');
             const tbody = document.getElementById('logBody');
             tbody.innerHTML = '';
             
-            let totalMinutes = 0;
+            let totalSeconds = 0;
             
             logs.forEach(log => {
-                totalMinutes += log.duration;
+                // 古いデータ（分単位）が残っている場合のフォールバック処理
+                const sec = log.durationSec !== undefined ? log.durationSec : (log.duration * 60);
+                totalSeconds += sec;
+                
                 const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${log.date}</td><td>${log.takeoff}</td><td>${log.landing}</td><td>${log.duration}分</td>`;
+                tr.innerHTML = `<td>${log.date}</td><td>${log.takeoff}</td><td>${log.landing}</td><td>${formatTimeFromSeconds(sec)}</td>`;
                 tbody.appendChild(tr);
             });
             
-            // 総飛行時間と回数の更新
-            const hours = Math.floor(totalMinutes / 60);
-            const mins = totalMinutes % 60;
-            document.getElementById('total-flight-time').innerText = `${hours}時間 ${mins}分`;
+            document.getElementById('total-flight-time').innerText = formatTimeFromSeconds(totalSeconds);
             document.getElementById('total-flight-count').innerText = `${logs.length}回`;
         }
 
-        // --- CSV出力 ---
+        // --- CSV出力 (秒単位対応) ---
         function exportCSV() {
             const info = JSON.parse(localStorage.getItem('uav_info') || '{}');
             const logs = JSON.parse(localStorage.getItem('uav_logs') || '[]');
             
             let csv = "操縦者,機体登録番号,許可承認番号\n";
             csv += `${info.pilotName || ''},${info.regId || ''},${info.permitNo || ''}\n\n`;
-            csv += "日付,離陸時刻,着陸時刻,飛行時間(分)\n";
+            csv += "日付,離陸時刻,着陸時刻,飛行時間(秒),飛行時間(フォーマット)\n";
             
             logs.forEach(log => {
-                csv += `${log.date},${log.takeoff},${log.landing},${log.duration}\n`;
+                const sec = log.durationSec !== undefined ? log.durationSec : (log.duration * 60);
+                csv += `${log.date},${log.takeoff},${log.landing},${sec},${formatTimeFromSeconds(sec)}\n`;
             });
             
             const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
@@ -343,9 +406,9 @@
             a.click();
         }
 
-        // --- PDF出力 (html2pdf使用) ---
-        function exportPDF() {
-            const element = document.getElementById('tab-export');
+        // --- フライト記録のPDF出力 ---
+        function exportLogPDF() {
+            const element = document.getElementById('print-log-area');
             const opt = {
                 margin:       10,
                 filename:     `FlightLog_${new Date().toLocaleDateString().replace(/\//g, '')}.pdf`,

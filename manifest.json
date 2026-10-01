@@ -1,0 +1,15 @@
+{
+  "name": "UAV Flight Logger",
+  "short_name": "フライト記録",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f8f9fa",
+  "theme_color": "#333333",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3211/3211158.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

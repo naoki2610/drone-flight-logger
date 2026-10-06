@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>UAV Flight Logger Pro (v7)</title>
+    <title>UAV Flight Logger Pro (v8)</title>
     <link rel="manifest" href="./manifest.json">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -15,7 +15,6 @@
         * { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
         body { margin: 0; padding: 0; background-color: var(--bg); color: var(--text); transition: 0.3s; }
         
-        /* トップヘッダーとタブ */
         .header { display: flex; justify-content: space-between; padding: 10px 15px; background: #222; color: white; align-items: center; }
         .nav { display: flex; background: #333; position: sticky; top: 0; z-index: 1000; overflow-x: auto; white-space: nowrap; }
         .nav button { flex: 1; min-width: 75px; padding: 12px 5px; background: none; border: none; color: white; font-size: 13px; cursor: pointer; }
@@ -26,14 +25,12 @@
         .tab-content { display: none; }
         .tab-content.active { display: block; }
         
-        /* フォーム部品 */
         label { display: block; margin-top: 15px; font-weight: bold; font-size: 13px; }
-        input[type="text"], input[type="date"], input[type="number"] { width: 100%; padding: 12px; margin-top: 5px; border: 1px solid var(--border); border-radius: 6px; font-size: 16px; background: var(--panel); color: var(--text); }
+        input[type="text"], input[type="date"], input[type="number"], input[type="tel"] { width: 100%; padding: 12px; margin-top: 5px; border: 1px solid var(--border); border-radius: 6px; font-size: 16px; background: var(--panel); color: var(--text); }
         .checkbox-label { display: flex; align-items: center; background: #fff3cd; color: #856404; padding: 12px; border-radius: 6px; margin-top: 15px; border: 1px solid #ffeeba; font-weight: bold; font-size: 14px; }
         body.dark-mode .checkbox-label { background: #4d4013; color: #ffd966; border-color: #665413; }
         .checkbox-label input { margin-right: 10px; transform: scale(1.5); }
         
-        /* ボタン類 */
         .btn-main { width: 100%; height: 90px; font-size: 26px; font-weight: bold; border-radius: 12px; border: none; cursor: pointer; margin-top: 20px; color: white; transition: 0.3s; }
         .btn-takeoff { background-color: var(--success); }
         .btn-takeoff:disabled { background-color: #888; cursor: not-allowed; }
@@ -41,25 +38,21 @@
         .btn-land { background-color: var(--danger); }
         .export-btn { width: 48%; padding: 15px; margin-top: 15px; font-size: 15px; border: none; border-radius: 6px; cursor: pointer; color: white; font-weight:bold; }
         
-        /* パネル・テーブル */
         .info-panel { background: var(--panel); padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--border); }
         #map, #export-map { height: 220px; border-radius: 6px; margin-top: 10px; background: #eaeaea; z-index: 1; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; background: var(--panel); font-size: 12px; }
         th, td { border: 1px solid var(--border); padding: 8px; text-align: center; vertical-align: middle; }
         th { background-color: rgba(0,0,0,0.05); }
         
-        /* 署名キャンバス */
         .canvas-container { border: 2px dashed var(--border); background: #fff; border-radius: 6px; margin-top: 5px; }
-        canvas { width: 100%; height: 120px; touch-action: none; } /* スクロール防止 */
+        canvas { width: 100%; height: 120px; touch-action: none; }
         .signature-img { max-height: 50px; }
         
-        /* SOSタブ */
-        .sos-number { font-size: 32px; font-weight: bold; color: var(--danger); text-align: center; margin: 10px 0; }
-        .sos-link { display: block; background: var(--danger); color: white; text-align: center; padding: 15px; text-decoration: none; border-radius: 8px; font-size: 20px; font-weight: bold; margin-bottom: 10px; }
+        .sos-number { font-size: 26px; font-weight: bold; color: var(--danger); margin: 5px 0; }
+        .sos-link { display: block; background: var(--danger); color: white; text-align: center; padding: 15px; text-decoration: none; border-radius: 8px; font-size: 20px; font-weight: bold; margin-bottom: 10px; border: 2px solid transparent; }
     </style>
 </head>
 <body>
-    <!-- ヘッダー（ダークモード切替） -->
     <div class="header">
         <span style="font-weight: bold;">UAV Flight Logger Pro</span>
         <label style="margin:0; font-size:12px; font-weight:normal;">
@@ -67,7 +60,6 @@
         </label>
     </div>
 
-    <!-- タブメニュー -->
     <div class="nav">
         <button class="tab-link active" onclick="openTab('tab-info')">基本情報</button>
         <button class="tab-link" onclick="openTab('tab-check')">飛行前点検</button>
@@ -90,7 +82,17 @@
                 <label>適用 (飛行目的・工事名など)</label>
                 <input type="text" id="flightPurpose" placeholder="例: 〇〇橋梁点検" oninput="saveInfo()">
                 
-                <!-- 【発注者対応】電子署名 -->
+                <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
+                
+                <h4 style="margin:0 0 10px 0; color: var(--danger);">社内 緊急連絡先 (設定推奨)</h4>
+                <p style="font-size:12px; margin-top:0;">※入力するとSOSタブに専用の発信ボタンが表示されます。</p>
+                <label style="margin-top:0;">責任者・管理者名</label>
+                <input type="text" id="adminName" placeholder="例: 本社 安全管理部" oninput="saveInfo()">
+                <label>電話番号</label>
+                <input type="tel" id="adminPhone" placeholder="例: 090-XXXX-XXXX" oninput="saveInfo()">
+
+                <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
+
                 <label>操縦者 電子署名 (指でサイン)</label>
                 <div class="canvas-container">
                     <canvas id="sigCanvas"></canvas>
@@ -104,16 +106,12 @@
             <div id="print-check-area" class="info-panel" style="padding: 10px;">
                 <h2 style="text-align: center;">飛行前点検記録</h2>
                 <div style="font-size: 11px; margin-bottom: 10px; border-bottom: 1px solid var(--border); padding-bottom: 5px;" id="check-header-info"></div>
-                
                 <table id="inspectionTable">
                     <thead><tr><th style="width:28%;">項目</th><th style="width:30%;">状態</th><th style="width:42%;">摘要(処置等)</th></tr></thead>
                     <tbody id="inspection-body"></tbody>
                 </table>
-                <div style="text-align: right; margin-top: 10px; font-size: 12px;">
-                    確認者署名: <img id="out-sig-check" class="signature-img" src="" alt="(未署名)">
-                </div>
+                <div style="text-align: right; margin-top: 10px; font-size: 12px;">確認者署名: <img id="out-sig-check" class="signature-img" src="" alt="(未署名)"></div>
             </div>
-            <!-- 【国交省対応】不良時の入力チェックバリデーション -->
             <button class="export-btn" style="width: 100%; background: var(--success);" onclick="validateAndShareChecklist()">点検記録を共有 (PDF)</button>
         </div>
 
@@ -128,23 +126,17 @@
                     <input type="number" step="0.1" id="manualWind" placeholder="例: 2.5" style="width:100px; margin-right:5px;"> m/s
                 </div>
             </div>
-
-            <!-- 【警察庁対応】確認強制チェックボックス -->
             <label class="checkbox-label">
                 <input type="checkbox" id="checkPolice" onchange="toggleTakeoffButton()">
                 DIPS及び警察庁WEB等で、周辺が臨時飛行禁止エリアでないことを確認した。
             </label>
-
             <div class="info-panel" style="text-align: center; margin-top: 15px;">
                 <h2 id="flight-status">待機中</h2>
                 <div id="stopwatch" style="font-size: 38px; font-family: monospace; margin: 5px 0;">00:00:00</div>
             </div>
-
-            <!-- 【現場対応】バッテリー交換(PAUSE)機能統合 -->
             <button id="btnTakeoff" class="btn-main btn-takeoff" onclick="startFlight()" disabled>TAKE OFF (離陸)</button>
-            
             <div id="flightControls" style="display: none; gap: 10px;">
-                <button id="btnPause" class="btn-main btn-pause" style="flex: 1;" onclick="pauseFlight()">一時停止<br><span style="font-size:12px;">(バッテリー交換等)</span></button>
+                <button id="btnPause" class="btn-main btn-pause" style="flex: 1;" onclick="pauseFlight()">一時停止<br><span style="font-size:12px;">(バッテリー交換)</span></button>
                 <button id="btnLand" class="btn-main btn-land" style="flex: 1;" onclick="endFlight()">LANDING<br><span style="font-size:12px;">(着陸・記録)</span></button>
             </div>
         </div>
@@ -158,21 +150,15 @@
                     <strong>機体:</strong> <span id="out-reg"></span> | <strong>適用:</strong> <span id="out-purpose" style="font-weight: bold;"></span>
                 </div>
                 <div id="export-map" style="height: 150px;"></div>
-                
-                <!-- 【国交省対応】累計飛行時間の表示 -->
                 <div style="font-size: 11px; margin: 10px 0; text-align:right;">
                     本日の記録: <span id="today-time">0分</span> / 総累計飛行時間: <strong><span id="total-accumulated-time">0時間0分</span></strong>
                 </div>
-                
                 <table id="logTable">
                     <thead><tr><th>日付</th><th>離陸</th><th>着陸</th><th>時間</th></tr></thead>
                     <tbody id="logBody"></tbody>
                 </table>
-                <div style="text-align: right; margin-top: 10px; font-size: 12px;">
-                    操縦者署名: <img id="out-sig-log" class="signature-img" src="" alt="(未署名)">
-                </div>
+                <div style="text-align: right; margin-top: 10px; font-size: 12px;">操縦者署名: <img id="out-sig-log" class="signature-img" src="" alt="(未署名)"></div>
             </div>
-
             <div style="display: flex; justify-content: space-between;">
                 <button class="export-btn" style="background: var(--primary);" onclick="shareCSV()">CSVを共有</button>
                 <button class="export-btn" style="background: var(--success);" onclick="sharePDF('print-log-area', 'FlightLog')">PDFを共有</button>
@@ -183,69 +169,60 @@
         <div id="tab-sos" class="tab-content">
             <div class="info-panel" style="border: 2px solid var(--danger);">
                 <h2 style="color: var(--danger); text-align: center; margin-top:0;">🚨 緊急時対応</h2>
-                <p style="font-size:14px; text-align:center;">落ち着いて、以下の現在地を伝えてください。</p>
-                <div class="sos-number" id="sos-location">座標取得中...</div>
                 
-                <a href="tel:119" class="sos-link">🚒 消防・救急 (119) に発信</a>
-                <a href="tel:110" class="sos-link" style="background: #0056b3;">🚓 警察 (110) に発信</a>
-                <a href="https://www.mlit.go.jp/koku/koku_fr10_000042.html" target="_blank" class="sos-link" style="background: #333; font-size: 16px;">🌐 航空局 事故報告ポータルを開く</a>
+                <!-- 管理者が設定されている場合のみ表示されるボタンエリア -->
+                <div id="sos-admin-area" style="margin-bottom: 20px;"></div>
+
+                <!-- 公的機関への通報ガイド（カンペ） -->
+                <div style="background: #fff3cd; color: #856404; padding: 15px; border-radius: 8px; border: 1px solid #ffeeba;">
+                    <p style="margin-top:0; font-weight:bold; font-size:16px;">【公的機関への通報ガイド】</p>
+                    <p style="font-size:13px; margin-bottom:15px; line-height: 1.4;">重大事故の場合は、<strong>ご自身の電話機</strong>から <strong>119番(消防)</strong> または <strong>110番(警察)</strong> に発信し、以下の情報を落ち着いて読み上げてください。</p>
+                    
+                    <div style="background: white; padding: 10px; border-radius: 6px; border: 1px solid #ccc; color: #333;">
+                        <div style="font-size: 11px; color: #666;">① 発生場所 (現在地)</div>
+                        <div class="sos-number" id="sos-location" style="font-size: 20px;">座標取得中...</div>
+                        
+                        <div style="font-size: 11px; color: #666; margin-top:10px;">② 操縦者名</div>
+                        <div id="sos-pilot" style="font-size: 20px; font-weight:bold; margin: 2px 0;">未入力</div>
+                        
+                        <div style="font-size: 11px; color: #666; margin-top:10px;">③ 飛行中の機体番号</div>
+                        <div id="sos-reg" style="font-size: 20px; font-weight:bold; margin: 2px 0;">未入力</div>
+                    </div>
+                </div>
+                
+                <a href="https://www.mlit.go.jp/koku/koku_fr10_000042.html" target="_blank" class="sos-link" style="background: #333; font-size: 14px; margin-top: 15px; padding: 10px;">🌐 航空局 事故報告ポータル(外部サイト)</a>
             </div>
         </div>
     </div>
 
     <script>
-        // PWA設定
         if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(e=>{})); }
-
-        // ダークモード切替
         function toggleDarkMode() { document.body.classList.toggle('dark-mode'); }
 
-        // --- 電子署名 (Canvas) の処理 ---
-        const canvas = document.getElementById('sigCanvas');
-        const ctx = canvas.getContext('2d');
-        let isDrawing = false;
-        
+        const canvas = document.getElementById('sigCanvas'); const ctx = canvas.getContext('2d'); let isDrawing = false;
         function resizeCanvas() { canvas.width = canvas.parentElement.clientWidth; canvas.height = 120; }
         window.addEventListener('resize', resizeCanvas);
-        
         function startDrawing(e) { isDrawing = true; draw(e); }
         function stopDrawing() { isDrawing = false; ctx.beginPath(); saveSignature(); }
         function draw(e) {
-            if (!isDrawing) return;
-            e.preventDefault(); // スクロール防止
-            const rect = canvas.getBoundingClientRect();
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            if (!isDrawing) return; e.preventDefault(); const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX, clientY = e.touches ? e.touches[0].clientY : e.clientY;
             ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.strokeStyle = document.body.classList.contains('dark-mode') ? '#fff' : '#000';
-            ctx.lineTo(clientX - rect.left, clientY - rect.top);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(clientX - rect.left, clientY - rect.top);
+            ctx.lineTo(clientX - rect.left, clientY - rect.top); ctx.stroke(); ctx.beginPath(); ctx.moveTo(clientX - rect.left, clientY - rect.top);
         }
         canvas.addEventListener('mousedown', startDrawing); canvas.addEventListener('mousemove', draw); canvas.addEventListener('mouseup', stopDrawing); canvas.addEventListener('mouseout', stopDrawing);
         canvas.addEventListener('touchstart', startDrawing, {passive: false}); canvas.addEventListener('touchmove', draw, {passive: false}); canvas.addEventListener('touchend', stopDrawing);
-
         function clearSignature() { ctx.clearRect(0, 0, canvas.width, canvas.height); localStorage.removeItem('uav_signature'); updateSignatureImages(); }
         function saveSignature() { localStorage.setItem('uav_signature', canvas.toDataURL()); updateSignatureImages(); }
         function updateSignatureImages() {
             const dataUrl = localStorage.getItem('uav_signature');
-            if(dataUrl) {
-                document.getElementById('out-sig-check').src = dataUrl;
-                document.getElementById('out-sig-log').src = dataUrl;
-                // 読み込み時にキャンバスにも復元
-                const img = new Image(); img.onload = () => ctx.drawImage(img, 0, 0); img.src = dataUrl;
-            }
+            if(dataUrl) { document.getElementById('out-sig-check').src = dataUrl; document.getElementById('out-sig-log').src = dataUrl;
+                const img = new Image(); img.onload = () => ctx.drawImage(img, 0, 0); img.src = dataUrl; }
         }
 
-        // --- 全体管理・初期化 ---
-        const inspectionItems = [
-            { id: "gen", name: "機体全般" }, { id: "prop", name: "プロペラ" }, { id: "frame", name: "フレーム" },
-            { id: "power", name: "電源・バッテリー" }, { id: "ctrl", name: "操縦・通信系統" }, { id: "dsp", name: "DIPS飛行通報" }
-        ];
+        const inspectionItems = [{ id: "gen", name: "機体全般" }, { id: "prop", name: "プロペラ" }, { id: "frame", name: "フレーム" }, { id: "power", name: "電源・バッテリー" }, { id: "ctrl", name: "操縦・通信系統" }, { id: "dsp", name: "DIPS飛行通報" }];
 
-        window.onload = () => {
-            resizeCanvas(); loadInfo(); updateSignatureImages(); renderInspectionTable(); initLocationAndWeather(); updateLogTable();
-        };
+        window.onload = () => { resizeCanvas(); loadInfo(); updateSignatureImages(); renderInspectionTable(); initLocationAndWeather(); updateLogTable(); };
 
         function openTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -257,17 +234,19 @@
         }
 
         function saveInfo() {
-            const info = { regId: document.getElementById('regId').value, pilotName: document.getElementById('pilotName').value, permitNo: document.getElementById('permitNo').value, flightPurpose: document.getElementById('flightPurpose').value };
+            const info = {
+                regId: document.getElementById('regId').value, pilotName: document.getElementById('pilotName').value, permitNo: document.getElementById('permitNo').value, flightPurpose: document.getElementById('flightPurpose').value,
+                adminName: document.getElementById('adminName').value, adminPhone: document.getElementById('adminPhone').value // 管理者情報を保存
+            };
             localStorage.setItem('uav_info', JSON.stringify(info));
             updateHeaders();
         }
 
         function loadInfo() {
             const info = JSON.parse(localStorage.getItem('uav_info') || '{}');
-            if(info.regId) document.getElementById('regId').value = info.regId;
-            if(info.pilotName) document.getElementById('pilotName').value = info.pilotName;
-            if(info.permitNo) document.getElementById('permitNo').value = info.permitNo;
-            if(info.flightPurpose) document.getElementById('flightPurpose').value = info.flightPurpose;
+            if(info.regId) document.getElementById('regId').value = info.regId; if(info.pilotName) document.getElementById('pilotName').value = info.pilotName;
+            if(info.permitNo) document.getElementById('permitNo').value = info.permitNo; if(info.flightPurpose) document.getElementById('flightPurpose').value = info.flightPurpose;
+            if(info.adminName) document.getElementById('adminName').value = info.adminName; if(info.adminPhone) document.getElementById('adminPhone').value = info.adminPhone;
             updateHeaders();
         }
 
@@ -276,180 +255,114 @@
             document.getElementById('check-header-info').innerHTML = `実施日: ${new Date().toLocaleDateString()} | 操縦者: ${info.pilotName || '未'} | 機体: ${info.regId || '未'} | 適用: ${info.flightPurpose || '未'}`;
             document.getElementById('out-pilot').innerText = info.pilotName || '未入力'; document.getElementById('out-permit').innerText = info.permitNo || '未入力';
             document.getElementById('out-reg').innerText = info.regId || '未入力'; document.getElementById('out-purpose').innerText = info.flightPurpose || '未入力';
+            
+            // SOSタブのカンペ情報を更新
+            document.getElementById('sos-pilot').innerText = info.pilotName || '未入力';
+            document.getElementById('sos-reg').innerText = info.regId || '未入力';
+            
+            // SOSタブの管理者発信ボタンを動的生成
+            const adminArea = document.getElementById('sos-admin-area');
+            if (info.adminPhone) {
+                const name = info.adminName || '安全管理者';
+                adminArea.innerHTML = `<p style="font-size:12px; margin-top:0; color:#666; text-align:center;">まずは社内の責任者へ報告してください</p>
+                                       <a href="tel:${info.adminPhone}" class="sos-link" style="background: var(--warning); color: #333; margin-bottom:0; border: 2px solid #d39e00;" onclick="return confirm('${name} 様へ電話を発信しますか？');">📞 ${name} に電話発信</a>`;
+            } else {
+                adminArea.innerHTML = `<p style="font-size:12px; color:#666; text-align:center; background:#f8f9fa; padding:10px; border-radius:6px; border:1px solid #ddd;">※基本情報タブで「社内 緊急連絡先」を設定すると、ここに責任者への直通発信ボタンが表示されます。</p>`;
+            }
         }
 
-        // --- 【国交省対応】点検記録＆バリデーション ---
         function renderInspectionTable() {
             const tbody = document.getElementById('inspection-body'); tbody.innerHTML = '';
             inspectionItems.forEach(item => {
-                const isDips = item.id === 'dsp';
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td style="text-align: left; font-size: 10px;">${item.name}</td>
-                    <td style="font-size: 11px;">
-                        <label><input type="radio" name="chk_${item.id}" value="${isDips ? '済' : '良'}" checked>${isDips ? '済' : '良'}</label>
-                        <label><input type="radio" name="chk_${item.id}" value="${isDips ? '未' : '不良'}">${isDips ? '未' : '不良'}</label>
-                    </td>
-                    <td><input type="text" id="rem_${item.id}" placeholder="${isDips ? '番号(任意)' : '処置内容'}" style="padding:4px; font-size:11px; margin:0;"></td>
-                `;
+                const isDips = item.id === 'dsp'; const tr = document.createElement('tr');
+                tr.innerHTML = `<td style="text-align: left; font-size: 10px;">${item.name}</td>
+                    <td style="font-size: 11px;"><label><input type="radio" name="chk_${item.id}" value="${isDips ? '済' : '良'}" checked>${isDips ? '済' : '良'}</label>
+                    <label><input type="radio" name="chk_${item.id}" value="${isDips ? '未' : '不良'}">${isDips ? '未' : '不良'}</label></td>
+                    <td><input type="text" id="rem_${item.id}" placeholder="${isDips ? '番号(任意)' : '処置内容'}" style="padding:4px; font-size:11px; margin:0;"></td>`;
                 tbody.appendChild(tr);
             });
         }
-
         function validateAndShareChecklist() {
             let hasError = false;
             inspectionItems.forEach(item => {
-                const isBad = document.querySelector(`input[name="chk_${item.id}"]:checked`).value === '不良';
-                const remark = document.getElementById(`rem_${item.id}`).value.trim();
-                if(isBad && remark === '') { hasError = true; document.getElementById(`rem_${item.id}`).style.borderColor = 'red'; } 
-                else { document.getElementById(`rem_${item.id}`).style.borderColor = 'var(--border)'; }
+                const isBad = document.querySelector(`input[name="chk_${item.id}"]:checked`).value === '不良', remark = document.getElementById(`rem_${item.id}`).value.trim();
+                if(isBad && remark === '') { hasError = true; document.getElementById(`rem_${item.id}`).style.borderColor = 'red'; } else { document.getElementById(`rem_${item.id}`).style.borderColor = 'var(--border)'; }
             });
             if(hasError) { alert('【警告】「不良」の項目があります。安全確保のため、摘要欄に「処置内容（部品交換など）」を入力してください。'); return; }
             sharePDF('print-check-area', 'InspectionLog');
         }
 
-        // --- 位置情報と地図 ---
         let map = null, exportMap = null, currentLat = 0, currentLon = 0, currentLocStr = "", currentWeatherStr = "";
         function initLocationAndWeather() {
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(position => {
-                    currentLat = position.coords.latitude; currentLon = position.coords.longitude;
-                    currentLocStr = `北緯${currentLat.toFixed(4)},東経${currentLon.toFixed(4)}`;
-                    document.getElementById('sos-location').innerText = currentLocStr; // SOSタブに反映
+                    currentLat = position.coords.latitude; currentLon = position.coords.longitude; currentLocStr = `北緯${currentLat.toFixed(4)},東経${currentLon.toFixed(4)}`;
+                    document.getElementById('sos-location').innerText = currentLocStr; // SOSタブのカンペに現在地を反映
 
                     if(!map) {
                         const stdMap = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { maxZoom: 18, attribution: "国土地理院" });
                         const didMap = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/did2020/{z}/{x}/{y}.png', { maxZoom: 18, opacity: 0.4 });
                         map = L.map('map', { center: [currentLat, currentLon], zoom: 15, layers: [stdMap, didMap] });
-                        L.control.layers({"標準地図": stdMap}, {"人口集中地区(DID)": didMap}).addTo(map);
-                        L.marker([currentLat, currentLon]).addTo(map).bindPopup('現在地').openPopup();
+                        L.control.layers({"標準地図": stdMap}, {"人口集中地区(DID)": didMap}).addTo(map); L.marker([currentLat, currentLon]).addTo(map).bindPopup('現在地').openPopup();
                     }
                     if(!exportMap) {
                         exportMap = L.map('export-map', { zoomControl: false, attributionControl: false }).setView([currentLat, currentLon], 15);
-                        L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(exportMap);
-                        L.marker([currentLat, currentLon]).addTo(exportMap);
+                        L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(exportMap); L.marker([currentLat, currentLon]).addTo(exportMap);
                     }
-
-                    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&current_weather=true&windspeed_unit=ms`)
-                        .then(r => r.json())
-                        .then(data => {
-                            currentWeatherStr = `API予報:気温${data.current_weather.temperature}℃/風速${data.current_weather.windspeed}m/s`;
+                    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&current_weather=true&windspeed_unit=ms`).then(r => r.json())
+                        .then(data => { currentWeatherStr = `API予報:気温${data.current_weather.temperature}℃/風速${data.current_weather.windspeed}m/s`;
                             document.getElementById('weather-info').innerHTML = `<strong>${currentWeatherStr}</strong> <br><small>${currentLocStr}</small>`;
                         }).catch(() => { document.getElementById('weather-info').innerHTML = `<strong>気象取得失敗(オフライン)</strong><br><small>${currentLocStr}</small>`; });
                 });
             }
         }
 
-        // --- 【操縦者対応】フライトタイマー (PAUSE対応) ---
         function toggleTakeoffButton() { document.getElementById('btnTakeoff').disabled = !document.getElementById('checkPolice').checked; }
-
         let timerInterval = null, startTime = null, accumulatedTime = 0, initialTakeoffDate = null, isPaused = false;
-
         function updateStopwatch() {
-            const now = new Date().getTime();
-            const totalMs = accumulatedTime + (isPaused ? 0 : (now - startTime));
-            const diff = new Date(totalMs);
+            const diff = new Date(accumulatedTime + (isPaused ? 0 : (new Date().getTime() - startTime)));
             document.getElementById('stopwatch').innerText = `${String(diff.getUTCHours()).padStart(2, '0')}:${String(diff.getUTCMinutes()).padStart(2, '0')}:${String(diff.getUTCSeconds()).padStart(2, '0')}`;
         }
-
         function startFlight() {
-            if(accumulatedTime === 0) initialTakeoffDate = new Date(); // 最初の離陸時刻
-            startTime = new Date().getTime();
-            isPaused = false;
-            document.getElementById('btnTakeoff').style.display = 'none';
-            document.getElementById('flightControls').style.display = 'flex';
-            document.getElementById('flight-status').innerText = "飛行中";
-            document.getElementById('flight-status').style.color = "var(--danger)";
+            if(accumulatedTime === 0) initialTakeoffDate = new Date();
+            startTime = new Date().getTime(); isPaused = false; document.getElementById('btnTakeoff').style.display = 'none';
+            document.getElementById('flightControls').style.display = 'flex'; document.getElementById('flight-status').innerText = "飛行中"; document.getElementById('flight-status').style.color = "var(--danger)";
             timerInterval = setInterval(updateStopwatch, 1000);
         }
-
         function pauseFlight() {
-            if(isPaused) { // 再開処理
-                startTime = new Date().getTime(); isPaused = false;
-                document.getElementById('btnPause').innerText = "一時停止\n(バッテリー交換等)";
-                document.getElementById('flight-status').innerText = "飛行中";
-            } else { // 停止処理
-                accumulatedTime += (new Date().getTime() - startTime); isPaused = true;
-                document.getElementById('btnPause').innerText = "▶ 飛行再開";
-                document.getElementById('flight-status').innerText = "一時停止中 (記録継続)";
-            }
+            if(isPaused) { startTime = new Date().getTime(); isPaused = false; document.getElementById('btnPause').innerText = "一時停止\n(バッテリー交換)"; document.getElementById('flight-status').innerText = "飛行中";
+            } else { accumulatedTime += (new Date().getTime() - startTime); isPaused = true; document.getElementById('btnPause').innerText = "▶ 飛行再開"; document.getElementById('flight-status').innerText = "一時停止中 (記録継続)"; }
         }
-
         function endFlight() {
-            clearInterval(timerInterval);
-            if(!isPaused) accumulatedTime += (new Date().getTime() - startTime);
-            const landingTime = new Date();
+            clearInterval(timerInterval); if(!isPaused) accumulatedTime += (new Date().getTime() - startTime);
             const durationSeconds = Math.round(accumulatedTime / 1000);
-            
-            const manualWind = document.getElementById('manualWind').value;
-            let finalWeather = currentWeatherStr; if(manualWind) finalWeather += ` (実測: ${manualWind}m/s)`;
-            
-            const log = {
-                date: initialTakeoffDate.toLocaleDateString('ja-JP'), takeoff: initialTakeoffDate.toLocaleTimeString('ja-JP'),
-                landing: landingTime.toLocaleTimeString('ja-JP'), durationSec: durationSeconds, location: currentLocStr, weather: finalWeather
-            };
-            
-            const logs = JSON.parse(localStorage.getItem('uav_logs') || '[]'); logs.push(log);
-            localStorage.setItem('uav_logs', JSON.stringify(logs));
-            
-            // リセット
-            accumulatedTime = 0; startTime = null; isPaused = false;
-            document.getElementById('btnTakeoff').style.display = 'block';
-            document.getElementById('flightControls').style.display = 'none';
-            document.getElementById('btnPause').innerText = "一時停止\n(バッテリー交換等)";
-            document.getElementById('flight-status').innerText = "待機中";
-            document.getElementById('flight-status').style.color = "var(--text)";
-            document.getElementById('stopwatch').innerText = "00:00:00";
-            
+            let finalWeather = currentWeatherStr; if(document.getElementById('manualWind').value) finalWeather += ` (実測: ${document.getElementById('manualWind').value}m/s)`;
+            const log = { date: initialTakeoffDate.toLocaleDateString('ja-JP'), takeoff: initialTakeoffDate.toLocaleTimeString('ja-JP'), landing: new Date().toLocaleTimeString('ja-JP'), durationSec: durationSeconds, location: currentLocStr, weather: finalWeather };
+            const logs = JSON.parse(localStorage.getItem('uav_logs') || '[]'); logs.push(log); localStorage.setItem('uav_logs', JSON.stringify(logs));
+            accumulatedTime = 0; startTime = null; isPaused = false; document.getElementById('btnTakeoff').style.display = 'block'; document.getElementById('flightControls').style.display = 'none';
+            document.getElementById('btnPause').innerText = "一時停止\n(バッテリー交換)"; document.getElementById('flight-status').innerText = "待機中"; document.getElementById('flight-status').style.color = "var(--text)"; document.getElementById('stopwatch').innerText = "00:00:00";
             updateLogTable();
         }
-
-        function formatTimeFromSeconds(totalSec) {
-            const h = Math.floor(totalSec / 3600), m = Math.floor((totalSec % 3600) / 60), s = totalSec % 60;
-            if (h > 0) return `${h}時間 ${m}分 ${s}秒`; if (m > 0) return `${m}分 ${s}秒`; return `${s}秒`;
-        }
-
-        // --- 【国交省対応】累計時間の計算と出力 ---
+        function formatTimeFromSeconds(totalSec) { const h = Math.floor(totalSec / 3600), m = Math.floor((totalSec % 3600) / 60), s = totalSec % 60; if (h > 0) return `${h}時間 ${m}分 ${s}秒`; if (m > 0) return `${m}分 ${s}秒`; return `${s}秒`; }
         function updateLogTable() {
-            const allLogs = JSON.parse(localStorage.getItem('uav_logs') || '[]');
-            const todayStr = new Date().toLocaleDateString('ja-JP');
-            const tbody = document.getElementById('logBody'); tbody.innerHTML = '';
-            
-            let totalSecondsAllTime = 0; // 生涯累計
-            let totalSecondsToday = 0; // 本日の累計
-            
-            allLogs.forEach(log => {
-                const sec = log.durationSec !== undefined ? log.durationSec : (log.duration * 60);
-                totalSecondsAllTime += sec;
-                if(log.date === todayStr) {
-                    totalSecondsToday += sec;
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `<td>${log.date}</td><td>${log.takeoff}</td><td>${log.landing}</td><td>${formatTimeFromSeconds(sec)}</td>`;
-                    tbody.appendChild(tr);
-                }
-            });
-            
-            document.getElementById('today-time').innerText = formatTimeFromSeconds(totalSecondsToday);
-            document.getElementById('total-accumulated-time').innerText = formatTimeFromSeconds(totalSecondsAllTime);
+            const allLogs = JSON.parse(localStorage.getItem('uav_logs') || '[]'), todayStr = new Date().toLocaleDateString('ja-JP'), tbody = document.getElementById('logBody'); tbody.innerHTML = '';
+            let totalSecondsAllTime = 0, totalSecondsToday = 0;
+            allLogs.forEach(log => { const sec = log.durationSec !== undefined ? log.durationSec : (log.duration * 60); totalSecondsAllTime += sec;
+                if(log.date === todayStr) { totalSecondsToday += sec; tbody.appendChild(Object.assign(document.createElement('tr'), {innerHTML:`<td>${log.date}</td><td>${log.takeoff}</td><td>${log.landing}</td><td>${formatTimeFromSeconds(sec)}</td>`})); } });
+            document.getElementById('today-time').innerText = formatTimeFromSeconds(totalSecondsToday); document.getElementById('total-accumulated-time').innerText = formatTimeFromSeconds(totalSecondsAllTime);
         }
-
-        // --- 共有機能 ---
         async function shareCSV() {
-            const allLogs = JSON.parse(localStorage.getItem('uav_logs') || '[]');
-            let csv = "日付,離陸時刻,着陸時刻,飛行時間(秒),位置座標,気象情報\n";
+            const allLogs = JSON.parse(localStorage.getItem('uav_logs') || '[]'); let csv = "日付,離陸時刻,着陸時刻,飛行時間(秒),位置座標,気象情報\n";
             allLogs.forEach(log => { csv += `${log.date},${log.takeoff},${log.landing},${log.durationSec},"${log.location}","${log.weather}"\n`; });
             const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv' });
             if (navigator.canShare) { try { await navigator.share({ files: [new File([blob], 'FlightLog.csv', { type: "text/csv" })] }); return; } catch (e) {} }
-            const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = 'FlightLog.csv'; a.click();
+            document.body.appendChild(Object.assign(document.createElement("a"), {href: URL.createObjectURL(blob), download: 'FlightLog.csv'})).click();
         }
-
         function sharePDF(elementId, filePrefix) {
-            const element = document.getElementById(elementId);
-            const inputs = element.querySelectorAll('input[type="text"]'); inputs.forEach(i => i.setAttribute('value', i.value));
-            const opt = { margin: 10, filename: `${filePrefix}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
-            html2pdf().set(opt).from(element).output('blob').then(async function(blob) {
+            const element = document.getElementById(elementId); element.querySelectorAll('input[type="text"]').forEach(i => i.setAttribute('value', i.value));
+            html2pdf().set({ margin: 10, filename: `${filePrefix}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(element).output('blob').then(async function(blob) {
                 if (navigator.canShare) { try { await navigator.share({ files: [new File([blob], `${filePrefix}.pdf`, { type: "application/pdf" })] }); return; } catch (e) {} }
-                const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${filePrefix}.pdf`; a.click();
+                document.body.appendChild(Object.assign(document.createElement("a"), {href: URL.createObjectURL(blob), download: `${filePrefix}.pdf`})).click();
             });
         }
     </script>

@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>UAV Flight Logger Pro (v10.7)</title>
+    <title>UAV Flight Logger Pro (v10.8)</title>
     <link rel="manifest" href="./manifest.json">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- jsPDF公式ライブラリの確実な読み込み -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
     <style>
@@ -59,7 +61,7 @@
 </head>
 <body>
     <div class="header">
-        <span style="font-weight: bold;">UAV Flight Logger Pro (v10.7)</span>
+        <span style="font-weight: bold;">UAV Flight Logger Pro (v10.8)</span>
         <label style="margin:0; font-size:12px; font-weight:normal;">
             <input type="checkbox" id="darkModeToggle" onchange="toggleDarkMode()"> ダークモード
         </label>
@@ -164,7 +166,7 @@
             </div>
         </div>
 
-        <!-- ⑤ 📥 データ復元 & エビデンスマップ (v10.7 完全ネイティブPDF生成) -->
+        <!-- ⑤ 📥 データ復元 & エビデンスマップ (v10.8 ネイティブPDF直結版) -->
         <div id="tab-recover" class="tab-content">
             <div class="info-panel" style="border: 2px solid #17a2b8;">
                 <h2 style="color: #17a2b8; text-align: center; margin-top:0;">📥 ログ復元・軌跡確認</h2>
@@ -416,7 +418,6 @@
         
         let recoveredLogData = null;
         let flightLatLngs = []; 
-        let currentMetaText = "";
 
         function parseDJICSV(event) {
             const file = event.target.files[0]; if (!file) return;
@@ -468,8 +469,6 @@
                 document.getElementById('btn-export-evidence').style.display = 'block';
 
                 const info = JSON.parse(localStorage.getItem('uav_info') || '{}');
-                currentMetaText = `実施日: ${takeoffDateStr} | 飛行時刻: ${takeoffTimeStr}～${landingTimeStr} (${formatTimeFromSeconds(durationSec)}) | 操縦者: ${info.pilotName || '未入力'} | 機体: ${info.regId || '未入力'} | 適用: ${info.flightPurpose || '未入力'}`;
-
                 document.getElementById('evidence-details').innerHTML = `
                     <strong>実施日:</strong> ${takeoffDateStr} <br>
                     <strong>飛行時刻:</strong> ${takeoffTimeStr} ～ ${landingTimeStr} (${formatTimeFromSeconds(durationSec)}) <br>
@@ -586,53 +585,56 @@
         async function shareCSV() {
             const allLogs = JSON.parse(localStorage.getItem('uav_logs') || '[]'); let csv = "日付,離陸時刻,着陸時刻,飛行時間(秒),位置座標,気象情報,エビデンス\n";
             allLogs.forEach(log => { csv += `${log.date},${log.takeoff},${log.landing},${log.durationSec},"${log.location}","${log.weather}","${log.verified ? 'システム検証済' : '手入力'}"\n`; });
-            const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv' });
+            const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv' %>;
             if (navigator.canShare) { try { await navigator.share({ files: [new File([blob], 'FlightLog.csv', { type: "text/csv" })] }); return; } catch (e) {} }
             document.body.appendChild(Object.assign(document.createElement("a"), {href: URL.createObjectURL(blob), download: 'FlightLog.csv'})).click();
         }
         
-        // --- ★【v10.7 決定版】jsPDFのネイティブ描画による完全PDF出力エンジン ---
+        // --- ★【v10.8 決定版】jsPDF ネイティブダイレクト描画エンジン ---
         async function exportEvidencePDFDirect() {
-            if (!window.jspdf || !window.jspdf.jsPDF) {
-                alert("PDF生成ライブラリが読み込まれていません。通信環境をご確認ください。");
+            // jsPDFのロード確認を安全に行う
+            const jsPDFClass = window.jspdf ? window.jspdf.jsPDF : window.jsPDF;
+            if (!jsPDFClass) {
+                alert("PDF生成ライブラリの読み込みに失敗しました。ネットワーク接続をご確認ください。");
                 return;
             }
 
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+            const doc = new jsPDFClass({ unit: 'mm', format: 'a4', orientation: 'portrait' });
 
-            // 日本語フォント対応（標準フォントでタイトル等を美しく配置）
+            // タイトルと枠線
             doc.setFont("helvetica", "bold");
-            doc.setFontSize(18);
-            doc.text("UAV Flight Evidence Report", 105, 20, { align: "center" });
+            doc.setFontSize(16);
+            doc.text("UAV Flight Evidence Report", 105, 18, { align: "center" });
 
-            doc.setLineWidth(0.5);
-            doc.line(20, 25, 190, 25);
+            doc.setLineWidth(0.4);
+            doc.line(20, 22, 190, 22);
 
             doc.setFontSize(12);
-            doc.text("飛行軌跡エビデンス証明書", 20, 35);
+            doc.text("飛行軌跡エビデンス証明書", 20, 30);
 
-            // メタ情報の書き込み
+            // メタ情報の取得・描画
             doc.setFont("helvetica", "normal");
             doc.setFontSize(10);
             const info = JSON.parse(localStorage.getItem('uav_info') || '{}');
-            doc.text(`Pilot: ${info.pilotName || '未入力'} | Reg: ${info.regId || '未入力'}`, 20, 43);
-            doc.text(`Purpose: ${info.flightPurpose || '未入力'}`, 20, 50);
+            const infoText1 = `Pilot: ${info.pilotName || '未入力'} | Reg: ${info.regId || '未入力'}`;
+            const infoText2 = `Purpose: ${info.flightPurpose || '未入力'}`;
+            doc.text(infoText1, 20, 38);
+            doc.text(infoText2, 20, 45);
 
-            // Canvas（静的軌跡図）を画像データとして直接取得してPDFに埋め込む
+            // 静的Canvas（軌跡図）を直接取得してPDFに結合
             const canvas = document.getElementById('staticTrajectoryCanvas');
             if (canvas) {
                 const imgData = canvas.toDataURL('image/png');
-                // A4サイズ幅(210mm)の中で余白を考慮し、幅170mmで描画
-                doc.addImage(imgData, 'PNG', 20, 60, 170, 100);
+                // A4幅(210mm)の中で左20mm、幅170mm、高さ100mmで配置
+                doc.addImage(imgData, 'PNG', 20, 52, 170, 95);
             }
 
-            doc.setFontSize(9);
-            doc.setTextColor(100);
-            doc.text("※本データは機体システム(CSV)から抽出された飛行軌跡のオリジナルデータです。", 20, 175);
-            doc.text("Issued by UAV Flight Logger Pro (Audit Verified)", 20, 182);
+            doc.setFontSize(8);
+            doc.setTextColor(120, 120, 120);
+            doc.text("※本データは機体システム(CSV)から抽出された飛行軌跡のオリジナルデータです。", 20, 155);
+            doc.text("Issued by UAV Flight Logger Pro (Audit Verified)", 20, 161);
 
-            // PDFの出力・共有
+            // モバイル共有またはダウンロード
             const pdfBlob = doc.output('blob');
             if (navigator.canShare) {
                 try {

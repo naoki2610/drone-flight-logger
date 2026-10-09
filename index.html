@@ -225,4 +225,274 @@
         function stopDrawing() { isDrawing = false; ctx.beginPath(); saveSignature(); }
         function draw(e) {
             if (!isDrawing) return; e.preventDefault(); const rect = canvas.getBoundingClientRect();
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX, clientY = e.touches ? e.touches[0].clientY : e.
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX, clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.strokeStyle = document.body.classList.contains('dark-mode') ? '#fff' : '#000';
+            ctx.lineTo(clientX - rect.left, clientY - rect.top); ctx.stroke(); ctx.beginPath(); ctx.moveTo(clientX - rect.left, clientY - rect.top);
+        }
+        canvas.addEventListener('mousedown', startDrawing); canvas.addEventListener('mousemove', draw); canvas.addEventListener('mouseup', stopDrawing); canvas.addEventListener('mouseout', stopDrawing);
+        canvas.addEventListener('touchstart', startDrawing, {passive: false}); canvas.addEventListener('touchmove', draw, {passive: false}); canvas.addEventListener('touchend', stopDrawing);
+        function clearSignature() { ctx.clearRect(0, 0, canvas.width, canvas.height); localStorage.removeItem('uav_signature'); updateSignatureImages(); }
+        function saveSignature() { localStorage.setItem('uav_signature', canvas.toDataURL()); updateSignatureImages(); }
+        function updateSignatureImages() {
+            const dataUrl = localStorage.getItem('uav_signature');
+            if(dataUrl) { document.getElementById('out-sig-check').src = dataUrl; document.getElementById('out-sig-log').src = dataUrl;
+                const img = new Image(); img.onload = () => ctx.drawImage(img, 0, 0); img.src = dataUrl; }
+        }
+
+        const inspectionItems = [{ id: "gen", name: "機体全般" }, { id: "prop", name: "プロペラ" }, { id: "frame", name: "フレーム" }, { id: "power", name: "電源・バッテリー" }, { id: "ctrl", name: "操縦・通信系統" }, { id: "dsp", name: "DIPS飛行通報" }];
+        let map = null, exportMap = null, recoverMap = null, currentLat = 0, currentLon = 0, currentLocStr = "", currentWeatherStr = "";
+
+        window.onload = () => { resizeCanvas(); loadInfo(); updateSignatureImages(); renderInspectionTable(); initLocationAndWeather(); updateLogTable(); };
+
+        function openTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-link').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            event.currentTarget.classList.add('active');
+            if(tabId === 'tab-flight' && map) setTimeout(() => map.invalidateSize(), 100);
+            if(tabId === 'tab-export' && exportMap) setTimeout(() => exportMap.invalidateSize(), 100);
+            if(tabId === 'tab-recover' && recoverMap) setTimeout(() => recoverMap.invalidateSize(), 100);
+        }
+
+        function saveInfo() {
+            const info = {
+                regId: document.getElementById('regId').value, pilotName: document.getElementById('pilotName').value, permitNo: document.getElementById('permitNo').value, flightPurpose: document.getElementById('flightPurpose').value,
+                adminName: document.getElementById('adminName').value, adminPhone: document.getElementById('adminPhone').value
+            };
+            localStorage.setItem('uav_info', JSON.stringify(info)); updateHeaders();
+        }
+
+        function loadInfo() {
+            const info = JSON.parse(localStorage.getItem('uav_info') || '{}');
+            if(info.regId) document.getElementById('regId').value = info.regId; if(info.pilotName) document.getElementById('pilotName').value = info.pilotName;
+            if(info.permitNo) document.getElementById('permitNo').value = info.permitNo; if(info.flightPurpose) document.getElementById('flightPurpose').value = info.flightPurpose;
+            if(info.adminName) document.getElementById('adminName').value = info.adminName; if(info.adminPhone) document.getElementById('adminPhone').value = info.adminPhone;
+            updateHeaders();
+        }
+
+        function updateHeaders() {
+            const info = JSON.parse(localStorage.getItem('uav_info') || '{}');
+            document.getElementById('check-header-info').innerHTML = `実施日: ${new Date().toLocaleDateString()} | 操縦者: ${info.pilotName || '未'} | 機体: ${info.regId || '未'} | 適用: ${info.flightPurpose || '未'}`;
+            document.getElementById('out-pilot').innerText = info.pilotName || '未入力'; document.getElementById('out-permit').innerText = info.permitNo || '未入力';
+            document.getElementById('out-reg').innerText = info.regId || '未入力'; document.getElementById('out-purpose').innerText = info.flightPurpose || '未入力';
+            document.getElementById('sos-pilot').innerText = info.pilotName || '未入力'; document.getElementById('sos-reg').innerText = info.regId || '未入力';
+            
+            const adminArea = document.getElementById('sos-admin-area');
+            if (info.adminPhone) {
+                const name = info.adminName || '安全管理者';
+                adminArea.innerHTML = `<p style="font-size:12px; margin-top:0; color:#666; text-align:center;">まずは社内の責任者へ報告してください</p>
+                                       <a href="tel:${info.adminPhone}" class="sos-link" style="background: var(--warning); color: #333; margin-bottom:0; border: 2px solid #d39e00;" onclick="return confirm('${name} 様へ電話を発信しますか？');">📞 ${name} に電話発信</a>`;
+            } else { adminArea.innerHTML = `<p style="font-size:12px; color:#666; text-align:center; background:#f8f9fa; padding:10px; border-radius:6px; border:1px solid #ddd;">※基本情報で責任者の連絡先を設定すると発信ボタンが表示されます。</p>`; }
+        }
+
+        function renderInspectionTable() {
+            const tbody = document.getElementById('inspection-body'); tbody.innerHTML = '';
+            inspectionItems.forEach(item => {
+                const isDips = item.id === 'dsp'; const tr = document.createElement('tr');
+                tr.innerHTML = `<td style="text-align: left; font-size: 10px;">${item.name}</td>
+                    <td style="font-size: 11px;"><label><input type="radio" name="chk_${item.id}" value="${isDips ? '済' : '良'}" checked>${isDips ? '済' : '良'}</label>
+                    <label><input type="radio" name="chk_${item.id}" value="${isDips ? '未' : '不良'}">${isDips ? '未' : '不良'}</label></td>
+                    <td><input type="text" id="rem_${item.id}" placeholder="${isDips ? '番号(任意)' : '処置内容'}" style="padding:4px; font-size:11px; margin:0;"></td>`;
+                tbody.appendChild(tr);
+            });
+        }
+        function validateAndShareChecklist() {
+            let hasError = false;
+            inspectionItems.forEach(item => {
+                const isBad = document.querySelector(`input[name="chk_${item.id}"]:checked`).value === '不良', remark = document.getElementById(`rem_${item.id}`).value.trim();
+                if(isBad && remark === '') { hasError = true; document.getElementById(`rem_${item.id}`).style.borderColor = 'red'; } else { document.getElementById(`rem_${item.id}`).style.borderColor = 'var(--border)'; }
+            });
+            if(hasError) { alert('【警告】「不良」の項目があります。安全確保のため、摘要欄に「処置内容（部品交換など）」を入力してください。'); return; }
+            sharePDF('print-check-area', 'InspectionLog');
+        }
+
+        // --- 【修正版】位置情報と地図の初期化（エラー対応強化） ---
+        function initLocationAndWeather() {
+            const setupMaps = (lat, lon, isError = false) => {
+                if(!map) {
+                    const stdMap = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { maxZoom: 18, attribution: "国土地理院" });
+                    const didMap = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/did2020/{z}/{x}/{y}.png', { maxZoom: 18, opacity: 0.4 });
+                    map = L.map('map', { center: [lat, lon], zoom: 15, layers: [stdMap, didMap] });
+                    L.control.layers({"標準地図": stdMap}, {"人口集中地区(DID)": didMap}).addTo(map);
+                    L.marker([lat, lon]).addTo(map).bindPopup(isError ? '位置情報エラー(仮表示)' : '現在地').openPopup();
+                } else {
+                    map.setView([lat, lon], 15);
+                }
+                
+                if(!exportMap) {
+                    exportMap = L.map('export-map', { zoomControl: false, attributionControl: false }).setView([lat, lon], 15);
+                    L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(exportMap);
+                    L.marker([lat, lon]).addTo(exportMap);
+                } else {
+                    exportMap.setView([lat, lon], 15);
+                }
+            };
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    position => {
+                        currentLat = position.coords.latitude; currentLon = position.coords.longitude; 
+                        currentLocStr = `北緯${currentLat.toFixed(4)},東経${currentLon.toFixed(4)}`;
+                        document.getElementById('sos-location').innerText = currentLocStr;
+                        setupMaps(currentLat, currentLon, false);
+
+                        fetch(`https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&current_weather=true&windspeed_unit=ms`).then(r => r.json())
+                            .then(data => { currentWeatherStr = `API予報:気温${data.current_weather.temperature}℃/風速${data.current_weather.windspeed}m/s`;
+                                document.getElementById('weather-info').innerHTML = `<strong>${currentWeatherStr}</strong> <br><small>${currentLocStr}</small>`;
+                            }).catch(() => { document.getElementById('weather-info').innerHTML = `<strong>気象取得失敗(オフライン)</strong><br><small>${currentLocStr}</small>`; });
+                    },
+                    error => {
+                        console.warn("位置情報の取得に失敗:", error.message);
+                        currentLat = 35.6812; currentLon = 139.7671; // エラー時は東京駅周辺をデフォルトとする
+                        currentLocStr = "位置情報未取得(エラー)";
+                        document.getElementById('sos-location').innerText = currentLocStr;
+                        document.getElementById('weather-info').innerHTML = `<strong>位置情報エラー</strong><br><small>端末の位置情報設定(GPS)をご確認ください</small>`;
+                        setupMaps(currentLat, currentLon, true);
+                    },
+                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+                );
+            } else {
+                setupMaps(35.6812, 139.7671, true); // 非対応ブラウザ
+            }
+        }
+
+        function toggleTakeoffButton() { document.getElementById('btnTakeoff').disabled = !document.getElementById('checkPolice').checked; }
+        let timerInterval = null, startTime = null, accumulatedTime = 0, initialTakeoffDate = null, isPaused = false;
+        function updateStopwatch() {
+            const diff = new Date(accumulatedTime + (isPaused ? 0 : (new Date().getTime() - startTime)));
+            document.getElementById('stopwatch').innerText = `${String(diff.getUTCHours()).padStart(2, '0')}:${String(diff.getUTCMinutes()).padStart(2, '0')}:${String(diff.getUTCSeconds()).padStart(2, '0')}`;
+        }
+        function startFlight() {
+            if(accumulatedTime === 0) initialTakeoffDate = new Date();
+            startTime = new Date().getTime(); isPaused = false; document.getElementById('btnTakeoff').style.display = 'none';
+            document.getElementById('flightControls').style.display = 'flex'; document.getElementById('flight-status').innerText = "飛行中"; document.getElementById('flight-status').style.color = "var(--danger)";
+            timerInterval = setInterval(updateStopwatch, 1000);
+        }
+        function pauseFlight() {
+            if(isPaused) { startTime = new Date().getTime(); isPaused = false; document.getElementById('btnPause').innerText = "一時停止\n(バッテリー交換)"; document.getElementById('flight-status').innerText = "飛行中";
+            } else { accumulatedTime += (new Date().getTime() - startTime); isPaused = true; document.getElementById('btnPause').innerText = "▶ 飛行再開"; document.getElementById('flight-status').innerText = "一時停止中 (記録継続)"; }
+        }
+        function endFlight() {
+            clearInterval(timerInterval); if(!isPaused) accumulatedTime += (new Date().getTime() - startTime);
+            const durationSeconds = Math.round(accumulatedTime / 1000);
+            let finalWeather = currentWeatherStr; if(document.getElementById('manualWind').value) finalWeather += ` (実測: ${document.getElementById('manualWind').value}m/s)`;
+            const log = { date: initialTakeoffDate.toLocaleDateString('ja-JP'), takeoff: initialTakeoffDate.toLocaleTimeString('ja-JP'), landing: new Date().toLocaleTimeString('ja-JP'), durationSec: durationSeconds, location: currentLocStr, weather: finalWeather, verified: false };
+            const logs = JSON.parse(localStorage.getItem('uav_logs') || '[]'); logs.push(log); localStorage.setItem('uav_logs', JSON.stringify(logs));
+            accumulatedTime = 0; startTime = null; isPaused = false; document.getElementById('btnTakeoff').style.display = 'block'; document.getElementById('flightControls').style.display = 'none';
+            document.getElementById('btnPause').innerText = "一時停止\n(バッテリー交換)"; document.getElementById('flight-status').innerText = "待機中"; document.getElementById('flight-status').style.color = "var(--text)"; document.getElementById('stopwatch').innerText = "00:00:00";
+            updateLogTable();
+        }
+        function formatTimeFromSeconds(totalSec) { const h = Math.floor(totalSec / 3600), m = Math.floor((totalSec % 3600) / 60), s = totalSec % 60; if (h > 0) return `${h}時間 ${m}分 ${s}秒`; if (m > 0) return `${m}分 ${s}秒`; return `${s}秒`; }
+        function updateLogTable() {
+            const allLogs = JSON.parse(localStorage.getItem('uav_logs') || '[]'), todayStr = new Date().toLocaleDateString('ja-JP'), tbody = document.getElementById('logBody'); tbody.innerHTML = '';
+            let totalSecondsAllTime = 0, totalSecondsToday = 0;
+            allLogs.forEach(log => { const sec = log.durationSec !== undefined ? log.durationSec : (log.duration * 60); totalSecondsAllTime += sec;
+                if(log.date === todayStr) { 
+                    totalSecondsToday += sec; 
+                    const badge = log.verified ? '<br><span style="color:#28a745; font-size:10px; font-weight:bold;">[✅システム検証済]</span>' : '';
+                    tbody.appendChild(Object.assign(document.createElement('tr'), {innerHTML:`<td style="font-size:11px;">${log.date}${badge}</td><td style="font-size:11px;">${log.takeoff}</td><td style="font-size:11px;">${log.landing}</td><td style="font-size:11px;">${formatTimeFromSeconds(sec)}</td>`})); 
+                } 
+            });
+            document.getElementById('today-time').innerText = formatTimeFromSeconds(totalSecondsToday); document.getElementById('total-accumulated-time').innerText = formatTimeFromSeconds(totalSecondsAllTime);
+        }
+        
+        let recoveredLogData = null;
+        let flightPolyline = null;
+
+        function parseDJICSV(event) {
+            const file = event.target.files[0]; if (!file) return;
+            const nameMatch = file.name.match(/(\d{4}-\d{2}-\d{2})_\[(\d{2})-(\d{2})-(\d{2})\]/);
+            if (!nameMatch) { alert("DJI純正のCSV形式(ExportCSV_...)ではありません。ファイル名から日時が取得できませんでした。"); return; }
+            
+            const takeoffDateStr = new Date(`${nameMatch[1].replace(/-/g, '/')} ${nameMatch[2]}:${nameMatch[3]}:${nameMatch[4]}`).toLocaleDateString('ja-JP');
+            const takeoffTimeStr = `${nameMatch[2]}:${nameMatch[3]}:${nameMatch[4]}`;
+            const takeoffTimeMs = new Date(`${nameMatch[1].replace(/-/g, '/')} ${nameMatch[2]}:${nameMatch[3]}:${nameMatch[4]}`).getTime();
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const lines = e.target.result.split('\n').filter(l => l.trim() !== '');
+                if (lines.length < 2) return;
+                
+                let maxCount = 0;
+                let latlngs = []; 
+
+                for (let i = 1; i < lines.length; i++) {
+                    const cols = lines[i].trim().split(/\s+|,/);
+                    if (cols.length >= 3) {
+                        const count = parseInt(cols[0], 10);
+                        const lat = parseFloat(cols[1]);
+                        const lon = parseFloat(cols[2]);
+                        
+                        if (!isNaN(count)) maxCount = Math.max(maxCount, count);
+                        if (!isNaN(lat) && !isNaN(lon) && lat !== 0 && lon !== 0) {
+                            latlngs.push([lat, lon]);
+                        }
+                    }
+                }
+                
+                const durationSec = Math.round(maxCount / 10);
+                const landingTimeStr = new Date(takeoffTimeMs + durationSec * 1000).toLocaleTimeString('ja-JP');
+                
+                let locStr = "位置情報なし";
+                if (latlngs.length > 0) {
+                    const mid = latlngs[Math.floor(latlngs.length / 2)];
+                    locStr = `北緯${mid[0].toFixed(4)},東経${mid[1].toFixed(4)}`;
+                }
+
+                recoveredLogData = { date: takeoffDateStr, takeoff: takeoffTimeStr, landing: landingTimeStr, durationSec: durationSec, location: locStr, weather: "機体ログ(CSV)から自動復元", verified: true };
+                
+                document.getElementById('verify-result').innerHTML = `<div style="background: #d4edda; color: #155724; padding: 10px; border-radius: 6px; margin-top: 15px; font-weight:bold;">✅ CSV解析＆軌跡の抽出 成功</div>`;
+                
+                document.getElementById('print-evidence-area').style.display = 'block';
+                document.getElementById('btn-add-log').style.display = 'block';
+                document.getElementById('btn-export-evidence').style.display = 'block';
+
+                const info = JSON.parse(localStorage.getItem('uav_info') || '{}');
+                document.getElementById('evidence-details').innerHTML = `
+                    <strong>実施日:</strong> ${takeoffDateStr} <br>
+                    <strong>飛行時刻:</strong> ${takeoffTimeStr} ～ ${landingTimeStr} (${formatTimeFromSeconds(durationSec)}) <br>
+                    <strong>操縦者:</strong> ${info.pilotName || '未入力'} | <strong>機体:</strong> ${info.regId || '未入力'} <br>
+                    <strong>適用:</strong> ${info.flightPurpose || '未入力'}
+                `;
+
+                if (!recoverMap) {
+                    recoverMap = L.map('recover-map', { zoomControl: false, attributionControl: false }).setView([35.6812, 139.7671], 15);
+                    L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(recoverMap);
+                }
+                
+                if (flightPolyline) { recoverMap.removeLayer(flightPolyline); }
+                
+                if (latlngs.length > 0) {
+                    flightPolyline = L.polyline(latlngs, {color: 'red', weight: 4, opacity: 0.8}).addTo(recoverMap);
+                    recoverMap.fitBounds(flightPolyline.getBounds());
+                    setTimeout(() => recoverMap.invalidateSize(), 100);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function addRecoveredLog() {
+            if(!recoveredLogData) return;
+            const logs = JSON.parse(localStorage.getItem('uav_logs') || '[]'); logs.push(recoveredLogData); localStorage.setItem('uav_logs', JSON.stringify(logs));
+            updateLogTable();
+            document.getElementById('verify-result').innerHTML = `<div style="background: #d4edda; color: #155724; padding: 15px; border-radius: 6px; margin-top: 15px; font-weight:bold;">✨ システムへの追加が完了しました。<br>「出力」タブをご確認ください。</div>`;
+            recoveredLogData = null;
+        }
+
+        async function shareCSV() {
+            const allLogs = JSON.parse(localStorage.getItem('uav_logs') || '[]'); let csv = "日付,離陸時刻,着陸時刻,飛行時間(秒),位置座標,気象情報,エビデンス\n";
+            allLogs.forEach(log => { csv += `${log.date},${log.takeoff},${log.landing},${log.durationSec},"${log.location}","${log.weather}","${log.verified ? 'システム検証済' : '手入力'}"\n`; });
+            const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv' });
+            if (navigator.canShare) { try { await navigator.share({ files: [new File([blob], 'FlightLog.csv', { type: "text/csv" })] }); return; } catch (e) {} }
+            document.body.appendChild(Object.assign(document.createElement("a"), {href: URL.createObjectURL(blob), download: 'FlightLog.csv'})).click();
+        }
+        function sharePDF(elementId, filePrefix) {
+            const element = document.getElementById(elementId); element.querySelectorAll('input[type="text"]').forEach(i => i.setAttribute('value', i.value));
+            html2pdf().set({ margin: 10, filename: `${filePrefix}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(element).output('blob').then(async function(blob) {
+                if (navigator.canShare) { try { await navigator.share({ files: [new File([blob], `${filePrefix}.pdf`, { type: "application/pdf" })] }); return; } catch (e) {} }
+                document.body.appendChild(Object.assign(document.createElement("a"), {href: URL.createObjectURL(blob), download: `${filePrefix}.pdf`})).click();
+            });
+        }
+    </script>
+</body>
+</html>

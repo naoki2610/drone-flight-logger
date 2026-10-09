@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>UAV Flight Logger Pro (v10.4)</title>
+    <title>UAV Flight Logger Pro (v10.5)</title>
     <link rel="manifest" href="./manifest.json">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -40,7 +40,7 @@
         .export-btn { width: 48%; padding: 15px; margin-top: 15px; font-size: 15px; border: none; border-radius: 6px; cursor: pointer; color: white; font-weight:bold; }
         
         .info-panel { background: var(--panel); padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--border); }
-        #map, #export-map, #recover-map { height: 280px; border-radius: 6px; margin-top: 10px; background: #eaeaea; z-index: 1; }
+        #map, #export-map, #recover-map { height: 320px; border-radius: 6px; margin-top: 10px; background: #eaeaea; z-index: 1; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; background: var(--panel); font-size: 12px; }
         th, td { border: 1px solid var(--border); padding: 8px; text-align: center; vertical-align: middle; }
         th { background-color: rgba(0,0,0,0.05); }
@@ -59,13 +59,12 @@
 </head>
 <body>
     <div class="header">
-        <span style="font-weight: bold;">UAV Flight Logger Pro (v10.4)</span>
+        <span style="font-weight: bold;">UAV Flight Logger Pro (v10.5)</span>
         <label style="margin:0; font-size:12px; font-weight:normal;">
             <input type="checkbox" id="darkModeToggle" onchange="toggleDarkMode()"> ダークモード
         </label>
     </div>
 
-    <!-- メニュータブ -->
     <div class="nav">
         <button class="tab-link active" onclick="openTab('tab-info')">基本情報</button>
         <button class="tab-link" onclick="openTab('tab-check')">点検</button>
@@ -165,7 +164,7 @@
             </div>
         </div>
 
-        <!-- ⑤ 📥 データ復元 & エビデンスマップ -->
+        <!-- ⑤ 📥 データ復元 & エビデンスマップ (v10.5 同期描画・遅延対応版) -->
         <div id="tab-recover" class="tab-content">
             <div class="info-panel" style="border: 2px solid #17a2b8;">
                 <h2 style="color: #17a2b8; text-align: center; margin-top:0;">📥 ログ復元・軌跡確認</h2>
@@ -179,17 +178,18 @@
                 
                 <div id="verify-result"></div>
 
-                <div id="print-evidence-area" style="background: white; padding: 10px; border-radius: 6px; margin-top: 15px; display: none; border: 1px solid var(--border);">
+                <div id="print-evidence-area" style="background: white; padding: 15px; border-radius: 6px; margin-top: 15px; display: none; border: 1px solid var(--border);">
                     <h3 style="text-align: center; color: #333; margin-top: 0; border-bottom: 2px solid #17a2b8; padding-bottom: 5px;">飛行軌跡エビデンス証明書</h3>
                     <div id="evidence-details" style="font-size: 11px; margin-bottom: 10px; line-height: 1.6; background: #f8f9fa; padding: 8px; border: 1px solid #eee;"></div>
                     
-                    <div id="recover-map" style="height: 350px; border-radius: 6px; border: 1px solid #ccc; z-index: 1;"></div>
+                    <!-- 証拠用マップ（高さ固定で確実に描画） -->
+                    <div id="recover-map" style="height: 380px; width: 100%; border-radius: 6px; border: 1px solid #ccc; position: relative; z-index: 1;"></div>
                     
-                    <div style="font-size: 10px; text-align: right; margin-top: 5px; color: #666;">※本データは機体システム(CSV)から抽出された飛行軌跡のオリジナルデータです。</div>
+                    <div style="font-size: 10px; text-align: right; margin-top: 8px; color: #666;">※本データは機体システム(CSV)から抽出された飛行軌跡のオリジナルデータです。</div>
                 </div>
                 <div style="display: flex; justify-content: space-between;">
                     <button id="btn-add-log" class="export-btn" style="background: var(--success); display: none;" onclick="addRecoveredLog()">システム記録に追加</button>
-                    <button id="btn-export-evidence" class="export-btn" style="background: #17a2b8; display: none;" onclick="sharePDF('print-evidence-area', 'FlightEvidenceMap')">エビデンスを出力(PDF)</button>
+                    <button id="btn-export-evidence" class="export-btn" style="background: #17a2b8; display: none;" onclick="exportEvidencePDF()">エビデンスを出力(PDF)</button>
                 </div>
             </div>
         </div>
@@ -217,11 +217,8 @@
     </div>
 
     <script>
-        // Service Workerの強制更新
         if ('serviceWorker' in navigator) { 
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js').then(reg => { reg.update(); }).catch(e=>{}); 
-            }); 
+            window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').then(reg => { reg.update(); }).catch(e=>{}); }); 
         }
 
         function toggleDarkMode() { document.body.classList.toggle('dark-mode'); }
@@ -252,7 +249,6 @@
 
         window.onload = () => { resizeCanvas(); loadInfo(); updateSignatureImages(); renderInspectionTable(); initLocationAndWeather(); updateLogTable(); };
 
-        // ★ タブ切り替え時にLeafletマップのサイズを強制再計算（スマホ表示崩れ防止）
         function openTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.tab-link').forEach(el => el.classList.remove('active'));
@@ -318,7 +314,6 @@
             sharePDF('print-check-area', 'InspectionLog');
         }
 
-        // --- 位置情報の初期化 ---
         function initLocationAndWeather() {
             const setupMaps = (lat, lon, isError = false) => {
                 const stdMap = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { maxZoom: 18, attribution: "国土地理院", crossOrigin: true });
@@ -484,7 +479,7 @@
                 if (latlngs.length > 0) {
                     flightPolyline = L.polyline(latlngs, {color: 'red', weight: 4, opacity: 0.8}).addTo(recoverMap);
                     recoverMap.fitBounds(flightPolyline.getBounds());
-                    setTimeout(() => recoverMap.invalidateSize(), 100);
+                    setTimeout(() => recoverMap.invalidateSize(), 150);
                 }
             };
             reader.readAsText(file);
@@ -506,22 +501,43 @@
             document.body.appendChild(Object.assign(document.createElement("a"), {href: URL.createObjectURL(blob), download: 'FlightLog.csv'})).click();
         }
         
-        function sharePDF(elementId, filePrefix) {
-            const element = document.getElementById(elementId); element.querySelectorAll('input[type="text"]').forEach(i => i.setAttribute('value', i.value));
-            
+        // ★【根本解決 v10.5】タイル画像の読み込み完全同期待機処理
+        function exportEvidencePDF() {
+            const element = document.getElementById('print-evidence-area');
+            element.querySelectorAll('input[type="text"]').forEach(i => i.setAttribute('value', i.value));
+
+            // マップのサイズを強制再計算してタイルを描画させる
+            if (recoverMap) {
+                recoverMap.invalidateSize();
+            }
+
+            // 1.5秒（1500ミリ秒）待機し、国土地理院サーバーからのタイル画像読み込みが100%完了するのを確実に待つ
             setTimeout(() => {
                 html2pdf().set({ 
                     margin: 10, 
-                    filename: `${filePrefix}.pdf`, 
+                    filename: 'FlightEvidenceMap.pdf', 
                     image: { type: 'jpeg', quality: 0.98 }, 
-                    html2canvas: { scale: 2, useCORS: true, logging: false }, 
+                    html2canvas: { 
+                        scale: 2, 
+                        useCORS: true, 
+                        logging: false,
+                        allowTaint: false
+                    }, 
                     pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
                     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } 
                 }).from(element).output('blob').then(async function(blob) {
-                    if (navigator.canShare) { try { await navigator.share({ files: [new File([blob], `${filePrefix}.pdf`, { type: "application/pdf" })] }); return; } catch (e) {} }
-                    document.body.appendChild(Object.assign(document.createElement("a"), {href: URL.createObjectURL(blob), download: `${filePrefix}.pdf`})).click();
+                    if (navigator.canShare) { 
+                        try { 
+                            await navigator.share({ files: [new File([blob], 'FlightEvidenceMap.pdf', { type: "application/pdf" })] }); 
+                            return; 
+                        } catch (e) {} 
+                    }
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(blob);
+                    a.download = 'FlightEvidenceMap.pdf';
+                    a.click();
                 });
-            }, 400);
+            }, 1500); // 1.5秒のディレイでタイルのロード抜けを完全に封じます
         }
     </script>
 </body>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>UAV Flight Logger Pro (v8)</title>
+    <title>UAV Flight Logger Pro (v9)</title>
     <link rel="manifest" href="./manifest.json">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -17,9 +17,10 @@
         
         .header { display: flex; justify-content: space-between; padding: 10px 15px; background: #222; color: white; align-items: center; }
         .nav { display: flex; background: #333; position: sticky; top: 0; z-index: 1000; overflow-x: auto; white-space: nowrap; }
-        .nav button { flex: 1; min-width: 75px; padding: 12px 5px; background: none; border: none; color: white; font-size: 13px; cursor: pointer; }
+        .nav button { flex: 1; min-width: 75px; padding: 12px 5px; background: none; border: none; color: white; font-size: 12px; cursor: pointer; }
         .nav button.active { background: var(--primary); font-weight: bold; }
         .nav button.tab-sos { background: var(--danger); font-weight: bold; }
+        .nav button.tab-recover { background: #17a2b8; font-weight: bold; }
         
         .container { padding: 15px; max-width: 600px; margin: auto; }
         .tab-content { display: none; }
@@ -50,6 +51,10 @@
         
         .sos-number { font-size: 26px; font-weight: bold; color: var(--danger); margin: 5px 0; }
         .sos-link { display: block; background: var(--danger); color: white; text-align: center; padding: 15px; text-decoration: none; border-radius: 8px; font-size: 20px; font-weight: bold; margin-bottom: 10px; border: 2px solid transparent; }
+        
+        .file-drop-area { border: 2px dashed var(--primary); background: rgba(0,86,179,0.05); padding: 30px; text-align: center; border-radius: 8px; margin-top: 15px; cursor: pointer; transition: 0.3s; }
+        .file-drop-area:hover { background: rgba(0,86,179,0.1); }
+        .file-drop-area input { display: none; }
     </style>
 </head>
 <body>
@@ -60,11 +65,13 @@
         </label>
     </div>
 
+    <!-- メニュータブ追加: データ復元 -->
     <div class="nav">
         <button class="tab-link active" onclick="openTab('tab-info')">基本情報</button>
-        <button class="tab-link" onclick="openTab('tab-check')">飛行前点検</button>
+        <button class="tab-link" onclick="openTab('tab-check')">点検</button>
         <button class="tab-link" onclick="openTab('tab-flight')">フライト</button>
-        <button class="tab-link" onclick="openTab('tab-export')">記録出力</button>
+        <button class="tab-link" onclick="openTab('tab-export')">出力</button>
+        <button class="tab-link tab-recover" onclick="openTab('tab-recover')">📥 復元</button>
         <button class="tab-link tab-sos" onclick="openTab('tab-sos')">🚨SOS</button>
     </div>
 
@@ -81,22 +88,15 @@
                 <input type="text" id="permitNo" placeholder="例: 〇空運航第0000号" oninput="saveInfo()">
                 <label>適用 (飛行目的・工事名など)</label>
                 <input type="text" id="flightPurpose" placeholder="例: 〇〇橋梁点検" oninput="saveInfo()">
-                
                 <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
-                
                 <h4 style="margin:0 0 10px 0; color: var(--danger);">社内 緊急連絡先 (設定推奨)</h4>
-                <p style="font-size:12px; margin-top:0;">※入力するとSOSタブに専用の発信ボタンが表示されます。</p>
                 <label style="margin-top:0;">責任者・管理者名</label>
                 <input type="text" id="adminName" placeholder="例: 本社 安全管理部" oninput="saveInfo()">
                 <label>電話番号</label>
                 <input type="tel" id="adminPhone" placeholder="例: 090-XXXX-XXXX" oninput="saveInfo()">
-
                 <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border);">
-
                 <label>操縦者 電子署名 (指でサイン)</label>
-                <div class="canvas-container">
-                    <canvas id="sigCanvas"></canvas>
-                </div>
+                <div class="canvas-container"><canvas id="sigCanvas"></canvas></div>
                 <button onclick="clearSignature()" style="margin-top:5px; padding:5px 10px; font-size:12px;">サインをやり直す</button>
             </div>
         </div>
@@ -165,31 +165,39 @@
             </div>
         </div>
 
-        <!-- ⑤ 🚨緊急 (SOS) タブ -->
+        <!-- ⑤ 📥 データ復元 (NEW!) -->
+        <div id="tab-recover" class="tab-content">
+            <div class="info-panel" style="border: 2px solid #17a2b8;">
+                <h2 style="color: #17a2b8; text-align: center; margin-top:0;">📥 フライト記録の復元</h2>
+                <p style="font-size:13px; line-height:1.5;">現場でアプリの記録ボタンを押し忘れた場合、機体（DJI）から取り出したCSVログを読み込むことで記録を自動復元・検証できます。</p>
+                
+                <div class="file-drop-area" onclick="document.getElementById('csvFileInput').click();">
+                    <span style="font-size: 30px;">📂</span><br>
+                    <strong>ここをタップして<br>DJIのCSVファイルを選択</strong>
+                    <input type="file" id="csvFileInput" accept=".csv" onchange="parseDJICSV(event)">
+                </div>
+                
+                <div id="verify-result"></div>
+            </div>
+        </div>
+
+        <!-- ⑥ 🚨緊急 (SOS) -->
         <div id="tab-sos" class="tab-content">
             <div class="info-panel" style="border: 2px solid var(--danger);">
                 <h2 style="color: var(--danger); text-align: center; margin-top:0;">🚨 緊急時対応</h2>
-                
-                <!-- 管理者が設定されている場合のみ表示されるボタンエリア -->
                 <div id="sos-admin-area" style="margin-bottom: 20px;"></div>
-
-                <!-- 公的機関への通報ガイド（カンペ） -->
                 <div style="background: #fff3cd; color: #856404; padding: 15px; border-radius: 8px; border: 1px solid #ffeeba;">
                     <p style="margin-top:0; font-weight:bold; font-size:16px;">【公的機関への通報ガイド】</p>
                     <p style="font-size:13px; margin-bottom:15px; line-height: 1.4;">重大事故の場合は、<strong>ご自身の電話機</strong>から <strong>119番(消防)</strong> または <strong>110番(警察)</strong> に発信し、以下の情報を落ち着いて読み上げてください。</p>
-                    
                     <div style="background: white; padding: 10px; border-radius: 6px; border: 1px solid #ccc; color: #333;">
                         <div style="font-size: 11px; color: #666;">① 発生場所 (現在地)</div>
                         <div class="sos-number" id="sos-location" style="font-size: 20px;">座標取得中...</div>
-                        
                         <div style="font-size: 11px; color: #666; margin-top:10px;">② 操縦者名</div>
                         <div id="sos-pilot" style="font-size: 20px; font-weight:bold; margin: 2px 0;">未入力</div>
-                        
                         <div style="font-size: 11px; color: #666; margin-top:10px;">③ 飛行中の機体番号</div>
                         <div id="sos-reg" style="font-size: 20px; font-weight:bold; margin: 2px 0;">未入力</div>
                     </div>
                 </div>
-                
                 <a href="https://www.mlit.go.jp/koku/koku_fr10_000042.html" target="_blank" class="sos-link" style="background: #333; font-size: 14px; margin-top: 15px; padding: 10px;">🌐 航空局 事故報告ポータル(外部サイト)</a>
             </div>
         </div>
@@ -236,10 +244,9 @@
         function saveInfo() {
             const info = {
                 regId: document.getElementById('regId').value, pilotName: document.getElementById('pilotName').value, permitNo: document.getElementById('permitNo').value, flightPurpose: document.getElementById('flightPurpose').value,
-                adminName: document.getElementById('adminName').value, adminPhone: document.getElementById('adminPhone').value // 管理者情報を保存
+                adminName: document.getElementById('adminName').value, adminPhone: document.getElementById('adminPhone').value
             };
-            localStorage.setItem('uav_info', JSON.stringify(info));
-            updateHeaders();
+            localStorage.setItem('uav_info', JSON.stringify(info)); updateHeaders();
         }
 
         function loadInfo() {
@@ -255,20 +262,14 @@
             document.getElementById('check-header-info').innerHTML = `実施日: ${new Date().toLocaleDateString()} | 操縦者: ${info.pilotName || '未'} | 機体: ${info.regId || '未'} | 適用: ${info.flightPurpose || '未'}`;
             document.getElementById('out-pilot').innerText = info.pilotName || '未入力'; document.getElementById('out-permit').innerText = info.permitNo || '未入力';
             document.getElementById('out-reg').innerText = info.regId || '未入力'; document.getElementById('out-purpose').innerText = info.flightPurpose || '未入力';
+            document.getElementById('sos-pilot').innerText = info.pilotName || '未入力'; document.getElementById('sos-reg').innerText = info.regId || '未入力';
             
-            // SOSタブのカンペ情報を更新
-            document.getElementById('sos-pilot').innerText = info.pilotName || '未入力';
-            document.getElementById('sos-reg').innerText = info.regId || '未入力';
-            
-            // SOSタブの管理者発信ボタンを動的生成
             const adminArea = document.getElementById('sos-admin-area');
             if (info.adminPhone) {
                 const name = info.adminName || '安全管理者';
                 adminArea.innerHTML = `<p style="font-size:12px; margin-top:0; color:#666; text-align:center;">まずは社内の責任者へ報告してください</p>
                                        <a href="tel:${info.adminPhone}" class="sos-link" style="background: var(--warning); color: #333; margin-bottom:0; border: 2px solid #d39e00;" onclick="return confirm('${name} 様へ電話を発信しますか？');">📞 ${name} に電話発信</a>`;
-            } else {
-                adminArea.innerHTML = `<p style="font-size:12px; color:#666; text-align:center; background:#f8f9fa; padding:10px; border-radius:6px; border:1px solid #ddd;">※基本情報タブで「社内 緊急連絡先」を設定すると、ここに責任者への直通発信ボタンが表示されます。</p>`;
-            }
+            } else { adminArea.innerHTML = `<p style="font-size:12px; color:#666; text-align:center; background:#f8f9fa; padding:10px; border-radius:6px; border:1px solid #ddd;">※基本情報で責任者の連絡先を設定すると発信ボタンが表示されます。</p>`; }
         }
 
         function renderInspectionTable() {
@@ -297,7 +298,7 @@
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(position => {
                     currentLat = position.coords.latitude; currentLon = position.coords.longitude; currentLocStr = `北緯${currentLat.toFixed(4)},東経${currentLon.toFixed(4)}`;
-                    document.getElementById('sos-location').innerText = currentLocStr; // SOSタブのカンペに現在地を反映
+                    document.getElementById('sos-location').innerText = currentLocStr;
 
                     if(!map) {
                         const stdMap = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { maxZoom: 18, attribution: "国土地理院" });
@@ -337,7 +338,7 @@
             clearInterval(timerInterval); if(!isPaused) accumulatedTime += (new Date().getTime() - startTime);
             const durationSeconds = Math.round(accumulatedTime / 1000);
             let finalWeather = currentWeatherStr; if(document.getElementById('manualWind').value) finalWeather += ` (実測: ${document.getElementById('manualWind').value}m/s)`;
-            const log = { date: initialTakeoffDate.toLocaleDateString('ja-JP'), takeoff: initialTakeoffDate.toLocaleTimeString('ja-JP'), landing: new Date().toLocaleTimeString('ja-JP'), durationSec: durationSeconds, location: currentLocStr, weather: finalWeather };
+            const log = { date: initialTakeoffDate.toLocaleDateString('ja-JP'), takeoff: initialTakeoffDate.toLocaleTimeString('ja-JP'), landing: new Date().toLocaleTimeString('ja-JP'), durationSec: durationSeconds, location: currentLocStr, weather: finalWeather, verified: false };
             const logs = JSON.parse(localStorage.getItem('uav_logs') || '[]'); logs.push(log); localStorage.setItem('uav_logs', JSON.stringify(logs));
             accumulatedTime = 0; startTime = null; isPaused = false; document.getElementById('btnTakeoff').style.display = 'block'; document.getElementById('flightControls').style.display = 'none';
             document.getElementById('btnPause').innerText = "一時停止\n(バッテリー交換)"; document.getElementById('flight-status').innerText = "待機中"; document.getElementById('flight-status').style.color = "var(--text)"; document.getElementById('stopwatch').innerText = "00:00:00";
@@ -348,12 +349,79 @@
             const allLogs = JSON.parse(localStorage.getItem('uav_logs') || '[]'), todayStr = new Date().toLocaleDateString('ja-JP'), tbody = document.getElementById('logBody'); tbody.innerHTML = '';
             let totalSecondsAllTime = 0, totalSecondsToday = 0;
             allLogs.forEach(log => { const sec = log.durationSec !== undefined ? log.durationSec : (log.duration * 60); totalSecondsAllTime += sec;
-                if(log.date === todayStr) { totalSecondsToday += sec; tbody.appendChild(Object.assign(document.createElement('tr'), {innerHTML:`<td>${log.date}</td><td>${log.takeoff}</td><td>${log.landing}</td><td>${formatTimeFromSeconds(sec)}</td>`})); } });
+                if(log.date === todayStr) { 
+                    totalSecondsToday += sec; 
+                    // DJI連動済バッジの表示
+                    const badge = log.verified ? '<br><span style="color:#28a745; font-size:10px; font-weight:bold;">[✅ システム検証済]</span>' : '';
+                    tbody.appendChild(Object.assign(document.createElement('tr'), {innerHTML:`<td style="font-size:11px;">${log.date}${badge}</td><td style="font-size:11px;">${log.takeoff}</td><td style="font-size:11px;">${log.landing}</td><td style="font-size:11px;">${formatTimeFromSeconds(sec)}</td>`})); 
+                } 
+            });
             document.getElementById('today-time').innerText = formatTimeFromSeconds(totalSecondsToday); document.getElementById('total-accumulated-time').innerText = formatTimeFromSeconds(totalSecondsAllTime);
         }
+        
+        // --- 【NEW】ログ復元（CSVパース）機能 ---
+        let recoveredLogData = null;
+        function parseDJICSV(event) {
+            const file = event.target.files[0]; if (!file) return;
+            // 1. ファイル名から日時を抽出 (ExportCSV_2026-10-07_[15-40-34].csv)
+            const nameMatch = file.name.match(/(\d{4}-\d{2}-\d{2})_\[(\d{2})-(\d{2})-(\d{2})\]/);
+            if (!nameMatch) { alert("DJI純正のCSV形式(ExportCSV_...)ではありません。ファイル名から日時が取得できませんでした。"); return; }
+            
+            const takeoffDateStr = new Date(`${nameMatch[1].replace(/-/g, '/')} ${nameMatch[2]}:${nameMatch[3]}:${nameMatch[4]}`).toLocaleDateString('ja-JP');
+            const takeoffTimeStr = `${nameMatch[2]}:${nameMatch[3]}:${nameMatch[4]}`;
+            const takeoffTimeMs = new Date(`${nameMatch[1].replace(/-/g, '/')} ${nameMatch[2]}:${nameMatch[3]}:${nameMatch[4]}`).getTime();
+
+            // 2. ファイルの中身から飛行時間と座標を抽出
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const lines = e.target.result.split('\n').filter(l => l.trim() !== '');
+                if (lines.length < 2) return;
+                
+                // 最後の行から最大カウントを取得
+                const lastLine = lines[lines.length - 1].trim().split(/\s+|,/);
+                const maxCount = parseInt(lastLine[0], 10);
+                if (isNaN(maxCount)) { alert("データ形式が読み取れませんでした。"); return; }
+                const durationSec = Math.round(maxCount / 10);
+                
+                // 着陸時刻を計算
+                const landingTimeStr = new Date(takeoffTimeMs + durationSec * 1000).toLocaleTimeString('ja-JP');
+                
+                // 中間地点の座標を取得
+                const midLine = lines[Math.floor(lines.length / 2)].trim().split(/\s+|,/);
+                let locStr = "位置情報なし";
+                if (midLine.length >= 3 && !isNaN(parseFloat(midLine[1]))) {
+                    locStr = `北緯${parseFloat(midLine[1]).toFixed(4)},東経${parseFloat(midLine[2]).toFixed(4)}`;
+                }
+
+                // 復元用データを一時保存
+                recoveredLogData = { date: takeoffDateStr, takeoff: takeoffTimeStr, landing: landingTimeStr, durationSec: durationSec, location: locStr, weather: "機体ログ(CSV)から自動復元", verified: true };
+                
+                // 結果を表示
+                document.getElementById('verify-result').innerHTML = `
+                    <div style="background: #d4edda; color: #155724; padding: 15px; border-radius: 6px; margin-top: 15px; text-align: left;">
+                        <h4 style="margin-top:0; border-bottom:1px solid #c3e6cb; padding-bottom:5px;">✅ CSV解析 成功</h4>
+                        <strong>飛行日:</strong> ${takeoffDateStr} <br>
+                        <strong>時刻:</strong> ${takeoffTimeStr} ～ ${landingTimeStr} <br>
+                        <strong>時間:</strong> ${formatTimeFromSeconds(durationSec)} <br>
+                        <strong>位置:</strong> ${locStr}
+                    </div>
+                    <button class="btn-main" style="background: var(--success); height: 70px; font-size: 20px; margin-top: 15px;" onclick="addRecoveredLog()">この記録をシステムに追加する</button>
+                `;
+            };
+            reader.readAsText(file);
+        }
+
+        function addRecoveredLog() {
+            if(!recoveredLogData) return;
+            const logs = JSON.parse(localStorage.getItem('uav_logs') || '[]'); logs.push(recoveredLogData); localStorage.setItem('uav_logs', JSON.stringify(logs));
+            updateLogTable();
+            document.getElementById('verify-result').innerHTML = `<div style="background: #d4edda; color: #155724; padding: 15px; border-radius: 6px; margin-top: 15px; font-weight:bold;">✨ システムへの追加が完了しました。<br>「出力」タブをご確認ください。</div>`;
+            recoveredLogData = null; // リセット
+        }
+
         async function shareCSV() {
-            const allLogs = JSON.parse(localStorage.getItem('uav_logs') || '[]'); let csv = "日付,離陸時刻,着陸時刻,飛行時間(秒),位置座標,気象情報\n";
-            allLogs.forEach(log => { csv += `${log.date},${log.takeoff},${log.landing},${log.durationSec},"${log.location}","${log.weather}"\n`; });
+            const allLogs = JSON.parse(localStorage.getItem('uav_logs') || '[]'); let csv = "日付,離陸時刻,着陸時刻,飛行時間(秒),位置座標,気象情報,エビデンス\n";
+            allLogs.forEach(log => { csv += `${log.date},${log.takeoff},${log.landing},${log.durationSec},"${log.location}","${log.weather}","${log.verified ? 'システム検証済' : '手入力'}"\n`; });
             const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv' });
             if (navigator.canShare) { try { await navigator.share({ files: [new File([blob], 'FlightLog.csv', { type: "text/csv" })] }); return; } catch (e) {} }
             document.body.appendChild(Object.assign(document.createElement("a"), {href: URL.createObjectURL(blob), download: 'FlightLog.csv'})).click();

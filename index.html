@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>UAV Flight Logger Pro (v10.8)</title>
+    <title>UAV Flight Logger Pro (v10.9)</title>
     <link rel="manifest" href="./manifest.json">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <!-- jsPDF公式ライブラリの確実な読み込み -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
@@ -61,19 +60,19 @@
 </head>
 <body>
     <div class="header">
-        <span style="font-weight: bold;">UAV Flight Logger Pro (v10.8)</span>
+        <span style="font-weight: bold;">UAV Flight Logger Pro (v10.9)</span>
         <label style="margin:0; font-size:12px; font-weight:normal;">
             <input type="checkbox" id="darkModeToggle" onchange="toggleDarkMode()"> ダークモード
         </label>
     </div>
 
     <div class="nav">
-        <button class="tab-link active" onclick="openTab('tab-info')">基本情報</button>
-        <button class="tab-link" onclick="openTab('tab-check')">点検</button>
-        <button class="tab-link" onclick="openTab('tab-flight')">フライト</button>
-        <button class="tab-link" onclick="openTab('tab-export')">出力</button>
-        <button class="tab-link tab-recover" onclick="openTab('tab-recover')">📥 復元</button>
-        <button class="tab-link tab-sos" onclick="openTab('tab-sos')">🚨SOS</button>
+        <button id="btn-tab-info" class="tab-link active" onclick="openTab('tab-info', this)">基本情報</button>
+        <button id="btn-tab-check" class="tab-link" onclick="openTab('tab-check', this)">点検</button>
+        <button id="btn-tab-flight" class="tab-link" onclick="openTab('tab-flight', this)">フライト</button>
+        <button id="btn-tab-export" class="tab-link" onclick="openTab('tab-export', this)">出力</button>
+        <button id="btn-tab-recover" class="tab-link tab-recover" onclick="openTab('tab-recover', this)">📥 復元</button>
+        <button id="btn-tab-sos" class="tab-link tab-sos" onclick="openTab('tab-sos', this)">🚨SOS</button>
     </div>
 
     <div class="container">
@@ -166,7 +165,7 @@
             </div>
         </div>
 
-        <!-- ⑤ 📥 データ復元 & エビデンスマップ (v10.8 ネイティブPDF直結版) -->
+        <!-- ⑤ 📥 データ復元 & エビデンスマップ -->
         <div id="tab-recover" class="tab-content">
             <div class="info-panel" style="border: 2px solid #17a2b8;">
                 <h2 style="color: #17a2b8; text-align: center; margin-top:0;">📥 ログ復元・軌跡確認</h2>
@@ -259,11 +258,14 @@
 
         window.onload = () => { resizeCanvas(); loadInfo(); updateSignatureImages(); renderInspectionTable(); initLocationAndWeather(); updateLogTable(); };
 
-        function openTab(tabId) {
+        // ★【v10.9 修正】イベント依存を排除し、ID指定で安全確実にタブを切り替える関数
+        function openTab(tabId, btnElement) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.tab-link').forEach(el => el.classList.remove('active'));
-            document.getElementById(tabId).classList.add('active');
-            event.currentTarget.classList.add('active');
+            
+            const targetTab = document.getElementById(tabId);
+            if (targetTab) targetTab.classList.add('active');
+            if (btnElement) btnElement.classList.add('active');
             
             setTimeout(() => {
                 if(tabId === 'tab-flight' && map) map.invalidateSize();
@@ -585,14 +587,12 @@
         async function shareCSV() {
             const allLogs = JSON.parse(localStorage.getItem('uav_logs') || '[]'); let csv = "日付,離陸時刻,着陸時刻,飛行時間(秒),位置座標,気象情報,エビデンス\n";
             allLogs.forEach(log => { csv += `${log.date},${log.takeoff},${log.landing},${log.durationSec},"${log.location}","${log.weather}","${log.verified ? 'システム検証済' : '手入力'}"\n`; });
-            const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv' %>;
+            const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv' });
             if (navigator.canShare) { try { await navigator.share({ files: [new File([blob], 'FlightLog.csv', { type: "text/csv" })] }); return; } catch (e) {} }
             document.body.appendChild(Object.assign(document.createElement("a"), {href: URL.createObjectURL(blob), download: 'FlightLog.csv'})).click();
         }
         
-        // --- ★【v10.8 決定版】jsPDF ネイティブダイレクト描画エンジン ---
         async function exportEvidencePDFDirect() {
-            // jsPDFのロード確認を安全に行う
             const jsPDFClass = window.jspdf ? window.jspdf.jsPDF : window.jsPDF;
             if (!jsPDFClass) {
                 alert("PDF生成ライブラリの読み込みに失敗しました。ネットワーク接続をご確認ください。");
@@ -601,7 +601,6 @@
 
             const doc = new jsPDFClass({ unit: 'mm', format: 'a4', orientation: 'portrait' });
 
-            // タイトルと枠線
             doc.setFont("helvetica", "bold");
             doc.setFontSize(16);
             doc.text("UAV Flight Evidence Report", 105, 18, { align: "center" });
@@ -612,20 +611,15 @@
             doc.setFontSize(12);
             doc.text("飛行軌跡エビデンス証明書", 20, 30);
 
-            // メタ情報の取得・描画
             doc.setFont("helvetica", "normal");
             doc.setFontSize(10);
             const info = JSON.parse(localStorage.getItem('uav_info') || '{}');
-            const infoText1 = `Pilot: ${info.pilotName || '未入力'} | Reg: ${info.regId || '未入力'}`;
-            const infoText2 = `Purpose: ${info.flightPurpose || '未入力'}`;
-            doc.text(infoText1, 20, 38);
-            doc.text(infoText2, 20, 45);
+            doc.text(`Pilot: ${info.pilotName || '未入力'} | Reg: ${info.regId || '未入力'}`, 20, 38);
+            doc.text(`Purpose: ${info.flightPurpose || '未入力'}`, 20, 45);
 
-            // 静的Canvas（軌跡図）を直接取得してPDFに結合
             const canvas = document.getElementById('staticTrajectoryCanvas');
             if (canvas) {
                 const imgData = canvas.toDataURL('image/png');
-                // A4幅(210mm)の中で左20mm、幅170mm、高さ100mmで配置
                 doc.addImage(imgData, 'PNG', 20, 52, 170, 95);
             }
 
@@ -634,7 +628,6 @@
             doc.text("※本データは機体システム(CSV)から抽出された飛行軌跡のオリジナルデータです。", 20, 155);
             doc.text("Issued by UAV Flight Logger Pro (Audit Verified)", 20, 161);
 
-            // モバイル共有またはダウンロード
             const pdfBlob = doc.output('blob');
             if (navigator.canShare) {
                 try {

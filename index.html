@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>UAV Flight Logger Pro (v10.2)</title>
+    <title>UAV Flight Logger Pro (v10.3)</title>
     <link rel="manifest" href="./manifest.json">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -308,26 +308,25 @@
             sharePDF('print-check-area', 'InspectionLog');
         }
 
-        // --- 【修正版】位置情報と地図の初期化（PDF崩れ対策・航空写真対応） ---
+        // --- 【修正版v10.3】位置情報の初期化（CORS汚染対策: crossOriginを追加） ---
         function initLocationAndWeather() {
             const setupMaps = (lat, lon, isError = false) => {
-                // 国土地理院のタイル設定
-                const stdMap = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { maxZoom: 18, attribution: "国土地理院" });
-                const photoMap = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', { maxZoom: 18, attribution: "国土地理院(航空写真)" });
-                const didMap = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/did2020/{z}/{x}/{y}.png', { maxZoom: 18, opacity: 0.4 });
+                // ★ すべてのタイル通信に crossOrigin: true (アクセス許可証) を付与
+                const stdMap = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { maxZoom: 18, attribution: "国土地理院", crossOrigin: true });
+                const photoMap = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', { maxZoom: 18, attribution: "国土地理院(航空写真)", crossOrigin: true });
+                const didMap = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/did2020/{z}/{x}/{y}.png', { maxZoom: 18, opacity: 0.4, crossOrigin: true });
 
-                // ★ preferCanvas: true を追加（PDF出力時のタイル崩れを完全に防ぐ魔法のオプション）
                 if(!map) {
                     map = L.map('map', { center: [lat, lon], zoom: 15, layers: [stdMap, didMap], preferCanvas: true });
                     L.control.layers({"標準地図": stdMap, "航空写真": photoMap}, {"人口集中地区(DID)": didMap}).addTo(map);
-                    L.control.scale({imperial: false, metric: true}).addTo(map); // スケールバー追加
+                    L.control.scale({imperial: false, metric: true}).addTo(map);
                     L.marker([lat, lon]).addTo(map).bindPopup(isError ? '位置情報エラー(仮表示)' : '現在地').openPopup();
                 } else {
                     map.setView([lat, lon], 15);
                 }
                 
                 if(!exportMap) {
-                    const stdMapExp = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { maxZoom: 18 });
+                    const stdMapExp = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { maxZoom: 18, crossOrigin: true });
                     exportMap = L.map('export-map', { zoomControl: false, attributionControl: false, preferCanvas: true, layers: [stdMapExp] }).setView([lat, lon], 15);
                     L.control.scale({imperial: false, metric: true}).addTo(exportMap);
                     L.marker([lat, lon]).addTo(exportMap);
@@ -351,7 +350,7 @@
                     },
                     error => {
                         console.warn("位置情報の取得に失敗:", error.message);
-                        currentLat = 35.6812; currentLon = 139.7671; // エラー時は東京駅
+                        currentLat = 35.6812; currentLon = 139.7671; 
                         currentLocStr = "位置情報未取得(エラー)";
                         document.getElementById('sos-location').innerText = currentLocStr;
                         document.getElementById('weather-info').innerHTML = `<strong>位置情報エラー</strong><br><small>端末の位置情報設定(GPS)をご確認ください</small>`;
@@ -398,4 +397,4 @@
                 if(log.date === todayStr) { 
                     totalSecondsToday += sec; 
                     const badge = log.verified ? '<br><span style="color:#28a745; font-size:10px; font-weight:bold;">[✅システム検証済]</span>' : '';
-                    tbody.appendChild(Object.assign(document.createElement('tr'), {innerHTML:`<td style="font-size:11px;">${log.date}${badge}</td><td style="font-size:11px;">${log.takeoff}</td><td style="font-size:11px;">${log
+                    tbody.appendChild(Object.assign(document.createElement('tr'), {innerHTML:`<td style="font-size:11px

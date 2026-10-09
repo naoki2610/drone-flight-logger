@@ -274,7 +274,7 @@
 
         function updateHeaders() {
             const info = JSON.parse(localStorage.getItem('uav_info') || '{}');
-            document.getElementById('check-header-info').innerHTML = `実施日: ${new Date().toLocaleDateString()} \vert{} 操縦者: ${info.pilotName || '未'} | 機体: ${info.regId \vert{}\vert{} '未'} \vert{} 適用: ${info.flightPurpose || '未'}`;
+            document.getElementById('check-header-info').innerHTML = `実施日: ${new Date().toLocaleDateString()} | 操縦者: ${info.pilotName || '未'} | 機体: ${info.regId || '未'} | 適用: ${info.flightPurpose || '未'}`;
             document.getElementById('out-pilot').innerText = info.pilotName || '未入力'; document.getElementById('out-permit').innerText = info.permitNo || '未入力';
             document.getElementById('out-reg').innerText = info.regId || '未入力'; document.getElementById('out-purpose').innerText = info.flightPurpose || '未入力';
             document.getElementById('sos-pilot').innerText = info.pilotName || '未入力'; document.getElementById('sos-reg').innerText = info.regId || '未入力';
@@ -397,4 +397,126 @@
                 if(log.date === todayStr) { 
                     totalSecondsToday += sec; 
                     const badge = log.verified ? '<br><span style="color:#28a745; font-size:10px; font-weight:bold;">[✅システム検証済]</span>' : '';
-                    tbody.appendChild(Object.assign(document.createElement('tr'), {innerHTML:`<td style="font-size:11px
+                    tbody.appendChild(Object.assign(document.createElement('tr'), {innerHTML:`<td style="font-size:11px;">${log.date}${badge}</td><td style="font-size:11px;">${log.takeoff}</td><td style="font-size:11px;">${log.landing}</td><td style="font-size:11px;">${formatTimeFromSeconds(sec)}</td>`})); 
+                } 
+            });
+            document.getElementById('today-time').innerText = formatTimeFromSeconds(totalSecondsToday); document.getElementById('total-accumulated-time').innerText = formatTimeFromSeconds(totalSecondsAllTime);
+        }
+        
+        let recoveredLogData = null;
+        let flightPolyline = null;
+
+        function parseDJICSV(event) {
+            const file = event.target.files[0]; if (!file) return;
+            const nameMatch = file.name.match(/(\d{4}-\d{2}-\d{2})_\[(\d{2})-(\d{2})-(\d{2})\]/);
+            if (!nameMatch) { alert("DJI純正のCSV形式(ExportCSV_...)ではありません。ファイル名から日時が取得できませんでした。"); return; }
+            
+            const takeoffDateStr = new Date(`${nameMatch[1].replace(/-/g, '/')} ${nameMatch[2]}:${nameMatch[3]}:${nameMatch[4]}`).toLocaleDateString('ja-JP');
+            const takeoffTimeStr = `${nameMatch[2]}:${nameMatch[3]}:${nameMatch[4]}`;
+            const takeoffTimeMs = new Date(`${nameMatch[1].replace(/-/g, '/')} ${nameMatch[2]}:${nameMatch[3]}:${nameMatch[4]}`).getTime();
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const lines = e.target.result.split('\n').filter(l => l.trim() !== '');
+                if (lines.length < 2) return;
+                
+                let maxCount = 0;
+                let latlngs = []; 
+
+                for (let i = 1; i < lines.length; i++) {
+                    const cols = lines[i].trim().split(/\s+|,/);
+                    if (cols.length >= 3) {
+                        const count = parseInt(cols[0], 10);
+                        const lat = parseFloat(cols[1]);
+                        const lon = parseFloat(cols[2]);
+                        
+                        if (!isNaN(count)) maxCount = Math.max(maxCount, count);
+                        if (!isNaN(lat) && !isNaN(lon) && lat !== 0 && lon !== 0) {
+                            latlngs.push([lat, lon]);
+                        }
+                    }
+                }
+                
+                const durationSec = Math.round(maxCount / 10);
+                const landingTimeStr = new Date(takeoffTimeMs + durationSec * 1000).toLocaleTimeString('ja-JP');
+                
+                let locStr = "位置情報なし";
+                if (latlngs.length > 0) {
+                    const mid = latlngs[Math.floor(latlngs.length / 2)];
+                    locStr = `北緯${mid[0].toFixed(4)},東経${mid[1].toFixed(4)}`;
+                }
+
+                recoveredLogData = { date: takeoffDateStr, takeoff: takeoffTimeStr, landing: landingTimeStr, durationSec: durationSec, location: locStr, weather: "機体ログ(CSV)から自動復元", verified: true };
+                
+                document.getElementById('verify-result').innerHTML = `<div style="background: #d4edda; color: #155724; padding: 10px; border-radius: 6px; margin-top: 15px; font-weight:bold;">✅ CSV解析＆軌跡の抽出 成功</div>`;
+                
+                document.getElementById('print-evidence-area').style.display = 'block';
+                document.getElementById('btn-add-log').style.display = 'block';
+                document.getElementById('btn-export-evidence').style.display = 'block';
+
+                const info = JSON.parse(localStorage.getItem('uav_info') || '{}');
+                document.getElementById('evidence-details').innerHTML = `
+                    <strong>実施日:</strong> ${takeoffDateStr} <br>
+                    <strong>飛行時刻:</strong> ${takeoffTimeStr} ～ ${landingTimeStr} (${formatTimeFromSeconds(durationSec)}) <br>
+                    <strong>操縦者:</strong> ${info.pilotName || '未入力'} | <strong>機体:</strong> ${info.regId || '未入力'} <br>
+                    <strong>適用:</strong> ${info.flightPurpose || '未入力'}
+                `;
+
+                // ★ 復元マップの設定にも crossOrigin: true を追加
+                if (!recoverMap) {
+                    const stdMap = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { maxZoom: 18, attribution: "国土地理院", crossOrigin: true });
+                    const photoMap = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', { maxZoom: 18, attribution: "国土地理院(航空写真)", crossOrigin: true });
+                    
+                    recoverMap = L.map('recover-map', { zoomControl: false, attributionControl: false, preferCanvas: true, layers: [stdMap] }).setView([35.6812, 139.7671], 15);
+                    L.control.layers({"標準地図": stdMap, "航空写真": photoMap}).addTo(recoverMap);
+                    L.control.scale({imperial: false, metric: true}).addTo(recoverMap); 
+                }
+                
+                if (flightPolyline) { recoverMap.removeLayer(flightPolyline); }
+                
+                if (latlngs.length > 0) {
+                    flightPolyline = L.polyline(latlngs, {color: 'red', weight: 4, opacity: 0.8}).addTo(recoverMap);
+                    recoverMap.fitBounds(flightPolyline.getBounds());
+                    setTimeout(() => recoverMap.invalidateSize(), 100);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function addRecoveredLog() {
+            if(!recoveredLogData) return;
+            const logs = JSON.parse(localStorage.getItem('uav_logs') || '[]'); logs.push(recoveredLogData); localStorage.setItem('uav_logs', JSON.stringify(logs));
+            updateLogTable();
+            document.getElementById('verify-result').innerHTML = `<div style="background: #d4edda; color: #155724; padding: 15px; border-radius: 6px; margin-top: 15px; font-weight:bold;">✨ システムへの追加が完了しました。<br>「出力」タブをご確認ください。</div>`;
+            recoveredLogData = null;
+        }
+
+        async function shareCSV() {
+            const allLogs = JSON.parse(localStorage.getItem('uav_logs') || '[]'); let csv = "日付,離陸時刻,着陸時刻,飛行時間(秒),位置座標,気象情報,エビデンス\n";
+            allLogs.forEach(log => { csv += `${log.date},${log.takeoff},${log.landing},${log.durationSec},"${log.location}","${log.weather}","${log.verified ? 'システム検証済' : '手入力'}"\n`; });
+            const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv' });
+            if (navigator.canShare) { try { await navigator.share({ files: [new File([blob], 'FlightLog.csv', { type: "text/csv" })] }); return; } catch (e) {} }
+            document.body.appendChild(Object.assign(document.createElement("a"), {href: URL.createObjectURL(blob), download: 'FlightLog.csv'})).click();
+        }
+        
+        function sharePDF(elementId, filePrefix) {
+            const element = document.getElementById(elementId); element.querySelectorAll('input[type="text"]').forEach(i => i.setAttribute('value', i.value));
+            
+            // 少しだけ待機して、キャンバスの描画完了を確実にしてからPDF化を実行
+            setTimeout(() => {
+                html2pdf().set({ 
+                    margin: 10, 
+                    filename: `${filePrefix}.pdf`, 
+                    image: { type: 'jpeg', quality: 0.98 }, 
+                    html2canvas: { scale: 2, useCORS: true, logging: false }, 
+                    pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } 
+                }).from(element).output('blob').then(async function(blob) {
+                    if (navigator.canShare) { try { await navigator.share({ files: [new File([blob], `${filePrefix}.pdf`, { type: "application/pdf" })] }); return; } catch (e) {} }
+                    document.body.appendChild(Object.assign(document.createElement("a"), {href: URL.createObjectURL(blob), download: `${filePrefix}.pdf`})).click();
+                });
+            }, 300); // 0.3秒のバッファを追加
+        }
+    </script>
+</body>
+</html>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>UAV Flight Logger Pro (v10.3)</title>
+    <title>UAV Flight Logger Pro (v10.4)</title>
     <link rel="manifest" href="./manifest.json">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -17,7 +17,7 @@
         
         .header { display: flex; justify-content: space-between; padding: 10px 15px; background: #222; color: white; align-items: center; }
         .nav { display: flex; background: #333; position: sticky; top: 0; z-index: 1000; overflow-x: auto; white-space: nowrap; }
-        .nav button { flex: 1; min-width: 75px; padding: 12px 5px; background: none; border: none; color: white; font-size: 12px; cursor: pointer; }
+        .nav button { flex: 1; min-width: 70px; padding: 12px 4px; background: none; border: none; color: white; font-size: 12px; cursor: pointer; }
         .nav button.active { background: var(--primary); font-weight: bold; }
         .nav button.tab-sos { background: var(--danger); font-weight: bold; }
         .nav button.tab-recover { background: #17a2b8; font-weight: bold; }
@@ -59,12 +59,13 @@
 </head>
 <body>
     <div class="header">
-        <span style="font-weight: bold;">UAV Flight Logger Pro</span>
+        <span style="font-weight: bold;">UAV Flight Logger Pro (v10.4)</span>
         <label style="margin:0; font-size:12px; font-weight:normal;">
             <input type="checkbox" id="darkModeToggle" onchange="toggleDarkMode()"> ダークモード
         </label>
     </div>
 
+    <!-- メニュータブ -->
     <div class="nav">
         <button class="tab-link active" onclick="openTab('tab-info')">基本情報</button>
         <button class="tab-link" onclick="openTab('tab-check')">点検</button>
@@ -182,7 +183,6 @@
                     <h3 style="text-align: center; color: #333; margin-top: 0; border-bottom: 2px solid #17a2b8; padding-bottom: 5px;">飛行軌跡エビデンス証明書</h3>
                     <div id="evidence-details" style="font-size: 11px; margin-bottom: 10px; line-height: 1.6; background: #f8f9fa; padding: 8px; border: 1px solid #eee;"></div>
                     
-                    <!-- 証拠用マップ -->
                     <div id="recover-map" style="height: 350px; border-radius: 6px; border: 1px solid #ccc; z-index: 1;"></div>
                     
                     <div style="font-size: 10px; text-align: right; margin-top: 5px; color: #666;">※本データは機体システム(CSV)から抽出された飛行軌跡のオリジナルデータです。</div>
@@ -217,7 +217,13 @@
     </div>
 
     <script>
-        if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(e=>{})); }
+        // Service Workerの強制更新
+        if ('serviceWorker' in navigator) { 
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js').then(reg => { reg.update(); }).catch(e=>{}); 
+            }); 
+        }
+
         function toggleDarkMode() { document.body.classList.toggle('dark-mode'); }
 
         const canvas = document.getElementById('sigCanvas'); const ctx = canvas.getContext('2d'); let isDrawing = false;
@@ -246,14 +252,18 @@
 
         window.onload = () => { resizeCanvas(); loadInfo(); updateSignatureImages(); renderInspectionTable(); initLocationAndWeather(); updateLogTable(); };
 
+        // ★ タブ切り替え時にLeafletマップのサイズを強制再計算（スマホ表示崩れ防止）
         function openTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.tab-link').forEach(el => el.classList.remove('active'));
             document.getElementById(tabId).classList.add('active');
             event.currentTarget.classList.add('active');
-            if(tabId === 'tab-flight' && map) setTimeout(() => map.invalidateSize(), 100);
-            if(tabId === 'tab-export' && exportMap) setTimeout(() => exportMap.invalidateSize(), 100);
-            if(tabId === 'tab-recover' && recoverMap) setTimeout(() => recoverMap.invalidateSize(), 100);
+            
+            setTimeout(() => {
+                if(tabId === 'tab-flight' && map) map.invalidateSize();
+                if(tabId === 'tab-export' && exportMap) exportMap.invalidateSize();
+                if(tabId === 'tab-recover' && recoverMap) recoverMap.invalidateSize();
+            }, 150);
         }
 
         function saveInfo() {
@@ -308,10 +318,9 @@
             sharePDF('print-check-area', 'InspectionLog');
         }
 
-        // --- 【修正版v10.3】位置情報の初期化（CORS汚染対策: crossOriginを追加） ---
+        // --- 位置情報の初期化 ---
         function initLocationAndWeather() {
             const setupMaps = (lat, lon, isError = false) => {
-                // ★ すべてのタイル通信に crossOrigin: true (アクセス許可証) を付与
                 const stdMap = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { maxZoom: 18, attribution: "国土地理院", crossOrigin: true });
                 const photoMap = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', { maxZoom: 18, attribution: "国土地理院(航空写真)", crossOrigin: true });
                 const didMap = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/did2020/{z}/{x}/{y}.png', { maxZoom: 18, opacity: 0.4, crossOrigin: true });
@@ -349,11 +358,10 @@
                             }).catch(() => { document.getElementById('weather-info').innerHTML = `<strong>気象取得失敗(オフライン)</strong><br><small>${currentLocStr}</small>`; });
                     },
                     error => {
-                        console.warn("位置情報の取得に失敗:", error.message);
                         currentLat = 35.6812; currentLon = 139.7671; 
                         currentLocStr = "位置情報未取得(エラー)";
                         document.getElementById('sos-location').innerText = currentLocStr;
-                        document.getElementById('weather-info').innerHTML = `<strong>位置情報エラー</strong><br><small>端末の位置情報設定(GPS)をご確認ください</small>`;
+                        document.getElementById('weather-info').innerHTML = `<strong>位置情報エラー</strong><br><small>端末のGPS設定をご確認ください</small>`;
                         setupMaps(currentLat, currentLon, true);
                     },
                     { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
@@ -462,7 +470,6 @@
                     <strong>適用:</strong> ${info.flightPurpose || '未入力'}
                 `;
 
-                // ★ 復元マップの設定にも crossOrigin: true を追加
                 if (!recoverMap) {
                     const stdMap = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { maxZoom: 18, attribution: "国土地理院", crossOrigin: true });
                     const photoMap = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', { maxZoom: 18, attribution: "国土地理院(航空写真)", crossOrigin: true });
@@ -502,7 +509,6 @@
         function sharePDF(elementId, filePrefix) {
             const element = document.getElementById(elementId); element.querySelectorAll('input[type="text"]').forEach(i => i.setAttribute('value', i.value));
             
-            // 少しだけ待機して、キャンバスの描画完了を確実にしてからPDF化を実行
             setTimeout(() => {
                 html2pdf().set({ 
                     margin: 10, 
@@ -515,7 +521,7 @@
                     if (navigator.canShare) { try { await navigator.share({ files: [new File([blob], `${filePrefix}.pdf`, { type: "application/pdf" })] }); return; } catch (e) {} }
                     document.body.appendChild(Object.assign(document.createElement("a"), {href: URL.createObjectURL(blob), download: `${filePrefix}.pdf`})).click();
                 });
-            }, 300); // 0.3秒のバッファを追加
+            }, 400);
         }
     </script>
 </body>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>UAV Flight Logger Pro (v10.9)</title>
+    <title>UAV Flight Logger Pro (v10.11)</title>
     <link rel="manifest" href="./manifest.json">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -59,7 +59,7 @@
 </head>
 <body>
     <div class="header">
-        <span style="font-weight: bold;">UAV Flight Logger Pro (v10.9)</span>
+        <span style="font-weight: bold;">UAV Flight Logger Pro (v10.11)</span>
         <label style="margin:0; font-size:12px; font-weight:normal;">
             <input type="checkbox" id="darkModeToggle" onchange="toggleDarkMode()"> ダークモード
         </label>
@@ -164,7 +164,7 @@
             </div>
         </div>
 
-        <!-- ⑤ 📥 データ復元 & エビデンスマップ (v10.9 完全日本語対応・HTML2PDF版) -->
+        <!-- ⑤ 📥 データ復元 & エビデンスマップ (v10.11 完全日本語対応・同期描画版) -->
         <div id="tab-recover" class="tab-content">
             <div class="info-panel" style="border: 2px solid #17a2b8;">
                 <h2 style="color: #17a2b8; text-align: center; margin-top:0;">📥 ログ復元・軌跡確認</h2>
@@ -183,22 +183,23 @@
                     <div id="recover-map" style="height: 250px; width: 100%; border-radius: 6px; border: 1px solid #ccc; z-index: 1;"></div>
                 </div>
 
-                <!-- PDF出力専用エリア（HTML形式で日本語を完全保持） -->
-                <div id="print-evidence-area" style="background: white; padding: 20px; border-radius: 6px; margin-top: 15px; display: none; border: 1px solid var(--border);">
-                    <h2 style="text-align: center; color: #333; margin-top: 0; border-bottom: 2px solid #17a2b8; padding-bottom: 8px;">飛行軌跡エビデンス証明書</h2>
-                    <div id="evidence-details" style="font-size: 12px; margin-bottom: 12px; line-height: 1.6; background: #f8f9fa; padding: 10px; border: 1px solid #eee;"></div>
+                <!-- PDF出力専用エリア（完全な日本語表記） -->
+                <div id="print-evidence-area" style="background: white; padding: 25px; border-radius: 6px; margin-top: 15px; display: none; border: 1px solid var(--border); width: 100%;">
+                    <h2 style="text-align: center; color: #333; margin-top: 0; border-bottom: 2px solid #17a2b8; padding-bottom: 10px; font-size: 20px;">飛行軌跡エビデンス証明書</h2>
+                    <div id="evidence-details" style="font-size: 13px; margin-bottom: 15px; line-height: 1.8; background: #f8f9fa; padding: 12px; border: 1px solid #eee; border-radius: 4px;"></div>
                     
                     <div style="text-align: center; border: 1px solid #ccc; border-radius: 6px; background: #fafafa; padding: 10px;">
-                        <canvas id="staticTrajectoryCanvas" width="600" height="350" style="width: 100%; height: auto; display: block; background: #eef2f5; border-radius: 4px;"></canvas>
-                        <div style="font-size: 10px; text-align: left; margin-top: 5px; color: #555;">※軌跡データ(GPSログ)をもとに生成されたジオメトリック・トラジェクトリー</div>
+                        <!-- 高解像度Canvas -->
+                        <canvas id="staticTrajectoryCanvas" width="800" height="450" style="width: 100%; height: auto; display: block; background: #eef2f5; border-radius: 4px;"></canvas>
+                        <div style="font-size: 11px; text-align: left; margin-top: 6px; color: #555;">※軌跡データ(GPSログ)をもとに生成されたジオメトリック・トラジェクトリー</div>
                     </div>
 
-                    <div style="font-size: 11px; text-align: right; margin-top: 10px; color: #666;">発行元: UAV Flight Logger Pro (Audit Verified)</div>
+                    <div style="font-size: 11px; text-align: right; margin-top: 15px; color: #666;">発行元: UAV Flight Logger Pro (Audit Verified)</div>
                 </div>
 
                 <div style="display: flex; justify-content: space-between;">
                     <button id="btn-add-log" class="export-btn" style="background: var(--success); display: none;" onclick="addRecoveredLog()">システム記録に追加</button>
-                    <button id="btn-export-evidence" class="export-btn" style="background: #17a2b8; display: none;" onclick="sharePDF('print-evidence-area', 'FlightEvidenceMap')">エビデンスを出力(PDF)</button>
+                    <button id="btn-export-evidence" class="export-btn" style="background: #17a2b8; display: none;" onclick="exportEvidencePDFMaster()">エビデンスを出力(PDF)</button>
                 </div>
             </div>
         </div>
@@ -569,7 +570,7 @@
             ctx.beginPath(); ctx.arc(endX, endY, 7, 0, Math.PI * 2); ctx.fill();
             ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
 
-            ctx.font = '12px sans-serif';
+            ctx.font = '14px sans-serif';
             ctx.fillStyle = '#333';
             ctx.fillText('▶ 離陸 (Start)', startX + 12, startY + 4);
             ctx.fillText('■ 着陸 (End)', endX + 12, endY + 4);
@@ -591,37 +592,42 @@
             document.body.appendChild(Object.assign(document.createElement("a"), {href: URL.createObjectURL(blob), download: 'FlightLog.csv'})).click();
         }
         
-        // --- ★【v10.9 決定版】html2pdfによる完全ビジュアルキャプチャ（日本語完全対応） ---
-        function sharePDF(elementId, filePrefix) {
-            const element = document.getElementById(elementId); 
-            element.querySelectorAll('input[type="text"]').forEach(i => i.setAttribute('value', i.value));
+        // --- ★【v10.11 マスター版】HTML2PDFによる完全同期ビジュアルマスターエンジン ---
+        function exportEvidencePDFMaster() {
+            const element = document.getElementById('print-evidence-area');
             
+            // 入力フォームの値を属性に確実に同期
+            element.querySelectorAll('input[type="text"]').forEach(i => i.setAttribute('value', i.value));
+
+            // スマホや各種ブラウザでのCanvas非同期描画完了を100%保証するためのレンダリングウェイト
             setTimeout(() => {
-                html2pdf().set({ 
-                    margin: 10, 
-                    filename: `${filePrefix}.pdf`, 
-                    image: { type: 'jpeg', quality: 0.98 }, 
-                    html2canvas: { 
+                const opt = {
+                    margin:       10,
+                    filename:     'FlightEvidenceMap.pdf',
+                    image:        { type: 'jpeg', quality: 0.98 },
+                    html2canvas:  { 
                         scale: 2, 
                         useCORS: true, 
                         logging: false,
-                        allowTaint: true
-                    }, 
-                    pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
-                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } 
-                }).from(element).output('blob').then(async function(blob) {
+                        allowTaint: true,
+                        letterRendering: true
+                    },
+                    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
+
+                html2pdf().from(element).set(opt).output('blob').then(async function(blob) {
                     if (navigator.canShare) { 
                         try { 
-                            await navigator.share({ files: [new File([blob], `${filePrefix}.pdf`, { type: "application/pdf" })] }); 
+                            await navigator.share({ files: [new File([blob], 'FlightEvidenceMap.pdf', { type: "application/pdf" })] }); 
                             return; 
                         } catch (e) {} 
                     }
                     const a = document.createElement("a");
                     a.href = URL.createObjectURL(blob);
-                    a.download = `${filePrefix}.pdf`;
+                    a.download = 'FlightEvidenceMap.pdf';
                     a.click();
                 });
-            }, 300);
+            }, 600); // 0.6秒の描画安定ウェイト
         }
     </script>
 </body>

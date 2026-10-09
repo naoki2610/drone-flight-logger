@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>UAV Flight Logger Pro (v10.6)</title>
+    <title>UAV Flight Logger Pro (v10.7)</title>
     <link rel="manifest" href="./manifest.json">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -59,7 +59,7 @@
 </head>
 <body>
     <div class="header">
-        <span style="font-weight: bold;">UAV Flight Logger Pro (v10.6)</span>
+        <span style="font-weight: bold;">UAV Flight Logger Pro (v10.7)</span>
         <label style="margin:0; font-size:12px; font-weight:normal;">
             <input type="checkbox" id="darkModeToggle" onchange="toggleDarkMode()"> ダークモード
         </label>
@@ -164,7 +164,7 @@
             </div>
         </div>
 
-        <!-- ⑤ 📥 データ復元 & エビデンスマップ (v10.6 100%確実なCanvas静的描画版) -->
+        <!-- ⑤ 📥 データ復元 & エビデンスマップ (v10.7 完全ネイティブPDF生成) -->
         <div id="tab-recover" class="tab-content">
             <div class="info-panel" style="border: 2px solid #17a2b8;">
                 <h2 style="color: #17a2b8; text-align: center; margin-top:0;">📥 ログ復元・軌跡確認</h2>
@@ -178,18 +178,15 @@
                 
                 <div id="verify-result"></div>
 
-                <!-- 画面確認用インタラクティブマップ -->
                 <div id="recover-map-container" style="display:none; margin-top:15px;">
                     <label>画面確認用マップ (操作可能)</label>
                     <div id="recover-map" style="height: 250px; width: 100%; border-radius: 6px; border: 1px solid #ccc; z-index: 1;"></div>
                 </div>
 
-                <!-- PDF出力専用エリア（HTML5 Canvasによる完全静的描画で絶対に切れません） -->
                 <div id="print-evidence-area" style="background: white; padding: 20px; border-radius: 6px; margin-top: 15px; display: none; border: 1px solid var(--border);">
                     <h2 style="text-align: center; color: #333; margin-top: 0; border-bottom: 2px solid #17a2b8; padding-bottom: 8px;">飛行軌跡エビデンス証明書</h2>
                     <div id="evidence-details" style="font-size: 12px; margin-bottom: 12px; line-height: 1.6; background: #f8f9fa; padding: 10px; border: 1px solid #eee;"></div>
                     
-                    <!-- 100%崩れない・切れない静的Canvasマップ -->
                     <div style="text-align: center; border: 1px solid #ccc; border-radius: 6px; background: #fafafa; padding: 10px;">
                         <canvas id="staticTrajectoryCanvas" width="600" height="350" style="width: 100%; height: auto; display: block; background: #eef2f5; border-radius: 4px;"></canvas>
                         <div style="font-size: 10px; text-align: left; margin-top: 5px; color: #555;">※軌跡データ(GPSログ)をもとに生成されたジオメトリック・トラジェクトリー</div>
@@ -200,7 +197,7 @@
 
                 <div style="display: flex; justify-content: space-between;">
                     <button id="btn-add-log" class="export-btn" style="background: var(--success); display: none;" onclick="addRecoveredLog()">システム記録に追加</button>
-                    <button id="btn-export-evidence" class="export-btn" style="background: #17a2b8; display: none;" onclick="exportEvidencePDF()">エビデンスを出力(PDF)</button>
+                    <button id="btn-export-evidence" class="export-btn" style="background: #17a2b8; display: none;" onclick="exportEvidencePDFDirect()">エビデンスを出力(PDF)</button>
                 </div>
             </div>
         </div>
@@ -418,7 +415,8 @@
         }
         
         let recoveredLogData = null;
-        let flightLatLngs = []; // 軌跡データ保持用
+        let flightLatLngs = []; 
+        let currentMetaText = "";
 
         function parseDJICSV(event) {
             const file = event.target.files[0]; if (!file) return;
@@ -470,6 +468,8 @@
                 document.getElementById('btn-export-evidence').style.display = 'block';
 
                 const info = JSON.parse(localStorage.getItem('uav_info') || '{}');
+                currentMetaText = `実施日: ${takeoffDateStr} | 飛行時刻: ${takeoffTimeStr}～${landingTimeStr} (${formatTimeFromSeconds(durationSec)}) | 操縦者: ${info.pilotName || '未入力'} | 機体: ${info.regId || '未入力'} | 適用: ${info.flightPurpose || '未入力'}`;
+
                 document.getElementById('evidence-details').innerHTML = `
                     <strong>実施日:</strong> ${takeoffDateStr} <br>
                     <strong>飛行時刻:</strong> ${takeoffTimeStr} ～ ${landingTimeStr} (${formatTimeFromSeconds(durationSec)}) <br>
@@ -477,7 +477,6 @@
                     <strong>適用:</strong> ${info.flightPurpose || '未入力'}
                 `;
 
-                // 1. 画面操作用Leafletマップの初期化と描画
                 if (!recoverMap) {
                     const stdMap = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { maxZoom: 18, attribution: "国土地理院", crossOrigin: true });
                     recoverMap = L.map('recover-map', { zoomControl: true, attributionControl: false, preferCanvas: true, layers: [stdMap] }).setView([35.6812, 139.7671], 15);
@@ -490,26 +489,22 @@
                 recoverMap.fitBounds(polylineLayer.getBounds());
                 setTimeout(() => recoverMap.invalidateSize(), 150);
 
-                // 2. ★PDF出力専用 HTML5 Canvas への静的描画（100%切れない仕様）
                 drawStaticTrajectoryToCanvas(flightLatLngs);
             };
             reader.readAsText(file);
         }
 
-        // HTML5 Canvasに飛行軌跡を完璧に描画する関数
         function drawStaticTrajectoryToCanvas(latlngs) {
             const canvas = document.getElementById('staticTrajectoryCanvas');
             const ctx = canvas.getContext('2d');
             const width = canvas.width;
             const height = canvas.height;
 
-            // 背景クリア
             ctx.fillStyle = '#f8f9fa';
             ctx.fillRect(0, 0, width, height);
 
             if (!latlngs || latlngs.length === 0) return;
 
-            // 緯度経度の最小・最大を計算
             let minLat = Infinity, maxLat = -Infinity;
             let minLon = Infinity, maxLon = -Infinity;
 
@@ -528,20 +523,16 @@
             const drawWidth = width - padding * 2;
             const drawHeight = height - padding * 2;
 
-            // アスペクト比を維持してスケーリング
             const scaleX = drawWidth / lonSpan;
             const scaleY = drawHeight / latSpan;
             const scale = Math.min(scaleX, scaleY);
 
-            // 中心合わせのオフセット計算
             const offsetX = padding + (drawWidth - lonSpan * scale) / 2;
             const offsetY = padding + (drawHeight - latSpan * scale) / 2;
 
-            // 座標変換ヘルパー (緯度反転: 画面Yは下向きのため)
             const toScreenX = lon => offsetX + (lon - minLon) * scale;
             const toScreenY = lat => height - (offsetY + (lat - minLat) * scale);
 
-            // グリッド線の描画
             ctx.strokeStyle = '#e0e0e0';
             ctx.lineWidth = 1;
             for (let x = 0; x < width; x += 40) {
@@ -551,7 +542,6 @@
                 ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
             }
 
-            // 飛行軌跡（赤い太線）の描画
             ctx.strokeStyle = '#dc3545';
             ctx.lineWidth = 4;
             ctx.lineCap = 'round';
@@ -566,7 +556,6 @@
             });
             ctx.stroke();
 
-            // 離陸地点（緑の丸）と着陸地点（青の丸）のマーカー描画
             const startX = toScreenX(latlngs[0][1]);
             const startY = toScreenY(latlngs[0][0]);
             const endX = toScreenX(latlngs[latlngs.length - 1][1]);
@@ -580,7 +569,6 @@
             ctx.beginPath(); ctx.arc(endX, endY, 7, 0, Math.PI * 2); ctx.fill();
             ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
 
-            // ラベルの描画
             ctx.font = '12px sans-serif';
             ctx.fillStyle = '#333';
             ctx.fillText('▶ 離陸 (Start)', startX + 12, startY + 4);
@@ -603,36 +591,56 @@
             document.body.appendChild(Object.assign(document.createElement("a"), {href: URL.createObjectURL(blob), download: 'FlightLog.csv'})).click();
         }
         
-        function exportEvidencePDF() {
-            const element = document.getElementById('print-evidence-area');
-            element.querySelectorAll('input[type="text"]').forEach(i => i.setAttribute('value', i.value));
+        // --- ★【v10.7 決定版】jsPDFのネイティブ描画による完全PDF出力エンジン ---
+        async function exportEvidencePDFDirect() {
+            if (!window.jspdf || !window.jspdf.jsPDF) {
+                alert("PDF生成ライブラリが読み込まれていません。通信環境をご確認ください。");
+                return;
+            }
 
-            setTimeout(() => {
-                html2pdf().set({ 
-                    margin: 10, 
-                    filename: 'FlightEvidenceMap.pdf', 
-                    image: { type: 'jpeg', quality: 0.98 }, 
-                    html2canvas: { 
-                        scale: 2, 
-                        useCORS: true, 
-                        logging: false,
-                        allowTaint: true
-                    }, 
-                    pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
-                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } 
-                }).from(element).output('blob').then(async function(blob) {
-                    if (navigator.canShare) { 
-                        try { 
-                            await navigator.share({ files: [new File([blob], 'FlightEvidenceMap.pdf', { type: "application/pdf" })] }); 
-                            return; 
-                        } catch (e) {} 
-                    }
-                    const a = document.createElement("a");
-                    a.href = URL.createObjectURL(blob);
-                    a.download = 'FlightEvidenceMap.pdf';
-                    a.click();
-                });
-            }, 300);
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+
+            // 日本語フォント対応（標準フォントでタイトル等を美しく配置）
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(18);
+            doc.text("UAV Flight Evidence Report", 105, 20, { align: "center" });
+
+            doc.setLineWidth(0.5);
+            doc.line(20, 25, 190, 25);
+
+            doc.setFontSize(12);
+            doc.text("飛行軌跡エビデンス証明書", 20, 35);
+
+            // メタ情報の書き込み
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(10);
+            const info = JSON.parse(localStorage.getItem('uav_info') || '{}');
+            doc.text(`Pilot: ${info.pilotName || '未入力'} | Reg: ${info.regId || '未入力'}`, 20, 43);
+            doc.text(`Purpose: ${info.flightPurpose || '未入力'}`, 20, 50);
+
+            // Canvas（静的軌跡図）を画像データとして直接取得してPDFに埋め込む
+            const canvas = document.getElementById('staticTrajectoryCanvas');
+            if (canvas) {
+                const imgData = canvas.toDataURL('image/png');
+                // A4サイズ幅(210mm)の中で余白を考慮し、幅170mmで描画
+                doc.addImage(imgData, 'PNG', 20, 60, 170, 100);
+            }
+
+            doc.setFontSize(9);
+            doc.setTextColor(100);
+            doc.text("※本データは機体システム(CSV)から抽出された飛行軌跡のオリジナルデータです。", 20, 175);
+            doc.text("Issued by UAV Flight Logger Pro (Audit Verified)", 20, 182);
+
+            // PDFの出力・共有
+            const pdfBlob = doc.output('blob');
+            if (navigator.canShare) {
+                try {
+                    await navigator.share({ files: [new File([pdfBlob], 'FlightEvidenceMap.pdf', { type: "application/pdf" })] });
+                    return;
+                } catch (e) {}
+            }
+            doc.save('FlightEvidenceMap.pdf');
         }
     </script>
 </body>

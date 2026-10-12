@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>UAV Flight Logger Pro (v10.15)</title>
+    <title>UAV Flight Logger Pro (v10.16)</title>
     <link rel="manifest" href="./manifest.json">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <!-- jsPDFのみ使用 (html2canvasはバグの元凶として完全排除) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
     <style>
         :root { --primary: #0056b3; --success: #28a745; --danger: #dc3545; --warning: #ffc107; --bg: #f4f6f9; --text: #333; --panel: white; --border: #ccc; }
@@ -60,7 +60,7 @@
 </head>
 <body>
     <div class="header">
-        <span style="font-weight: bold;">UAV Flight Logger Pro (v10.15)</span>
+        <span style="font-weight: bold;">UAV Flight Logger Pro (v10.16)</span>
         <label style="margin:0; font-size:12px; font-weight:normal;">
             <input type="checkbox" id="darkModeToggle" onchange="toggleDarkMode()"> ダークモード
         </label>
@@ -141,7 +141,7 @@
             </div>
         </div>
 
-        <!-- ④ 記録・出力 -->
+        <!-- ④ 記録・出力 (マップの現場ワープ機能実装) -->
         <div id="tab-export" class="tab-content">
             <div id="print-log-area" class="info-panel" style="padding: 10px;">
                 <h2 style="text-align: center; margin-top:0;">飛行記録 (様式1準拠)</h2>
@@ -149,7 +149,8 @@
                     <strong>操縦者:</strong> <span id="out-pilot"></span> | <strong>承認:</strong> <span id="out-permit"></span><br>
                     <strong>機体:</strong> <span id="out-reg"></span> | <strong>適用:</strong> <span id="out-purpose" style="font-weight: bold;"></span>
                 </div>
-                <div id="export-map" style="height: 200px;"></div>
+                <!-- 現場へ自動ワープ＆手動調整可能なマップ -->
+                <div id="export-map" style="height: 200px; z-index: 1;"></div>
                 <div style="font-size: 11px; margin: 10px 0; text-align:right;">
                     本日の記録: <span id="today-time">0分</span> / 総累計飛行時間: <strong><span id="total-accumulated-time">0時間0分</span></strong>
                 </div>
@@ -165,16 +166,18 @@
             </div>
         </div>
 
-        <!-- ⑤ 📥 データ復元 & エビデンスマップ (v10.15 最終完全版・完全バッファ描画エンジン) -->
+        <!-- ⑤ 📥 データ復元 & エビデンスマップ (マルチファイル・色分け統合版) -->
         <div id="tab-recover" class="tab-content">
             <div class="info-panel" style="border: 2px solid #17a2b8;">
                 <h2 style="color: #17a2b8; text-align: center; margin-top:0;">📥 ログ復元・軌跡確認</h2>
-                <p style="font-size:13px; line-height:1.5;">機体から取り出したCSVログを読み込むと、飛行軌跡（ルート）が描画され、「エビデンス証明書」として完璧に出力できます。</p>
+                <p style="font-size:13px; line-height:1.5;">機体から取り出したCSVログを読み込むと、飛行軌跡が描画され、「エビデンス証明書」として完璧に出力できます。<strong>※複数ファイルの一括選択に対応しました。</strong></p>
                 
                 <div class="file-drop-area" onclick="document.getElementById('csvFileInput').click();">
                     <span style="font-size: 30px;">📂</span><br>
-                    <strong>ここをタップして<br>DJIのCSVファイルを選択</strong>
-                    <input type="file" id="csvFileInput" accept=".csv" onchange="parseDJICSV(event)">
+                    <strong>ここをタップして<br>DJIのCSVファイルを選択</strong><br>
+                    <span style="font-size: 12px; color: #555;">(複数ファイルを一括選択可能です)</span>
+                    <!-- ★ multiple 属性を追加 -->
+                    <input type="file" id="csvFileInput" accept=".csv" onchange="parseDJICSV(event)" multiple>
                 </div>
                 
                 <div id="verify-result"></div>
@@ -184,7 +187,7 @@
                     <div id="recover-map" style="height: 250px; width: 100%; border-radius: 6px; border: 1px solid #ccc; z-index: 1;"></div>
                 </div>
 
-                <!-- 画面表示用の軌跡図プレビュー -->
+                <!-- PDF出力専用エリア（完全同期・色分け統合Canvas） -->
                 <div id="print-evidence-area" style="background: white; padding: 15px; border-radius: 4px; margin-top: 15px; display: none; border: 1px solid #ddd; width: 100%; box-sizing: border-box;">
                     <h2 style="text-align: center; color: #333; margin: 0 0 10px 0; border-bottom: 2px solid #17a2b8; padding-bottom: 6px; font-size: 18px;">飛行軌跡エビデンス証明書</h2>
                     <div id="evidence-details" style="font-size: 11px; margin-bottom: 10px; line-height: 1.5; background: #f8f9fa; padding: 8px; border: 1px solid #eee; border-radius: 4px;"></div>
@@ -225,7 +228,7 @@
 
     <script>
         if ('serviceWorker' in navigator) { 
-            window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').then(reg => { reg.update(); }).catch(e=>{}); }); 
+            window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch(e=>{}); }); 
         }
 
         function toggleDarkMode() { document.body.classList.toggle('dark-mode'); }
@@ -253,10 +256,14 @@
 
         const inspectionItems = [{ id: "gen", name: "機体全般" }, { id: "prop", name: "プロペラ" }, { id: "frame", name: "フレーム" }, { id: "power", name: "電源・バッテリー" }, { id: "ctrl", name: "操縦・通信系統" }, { id: "dsp", name: "DIPS飛行通報" }];
         let map = null, exportMap = null, recoverMap = null, currentLat = 0, currentLon = 0, currentLocStr = "", currentWeatherStr = "";
+        
+        // ★ 追加機能用のグローバル変数
         let cachedEvidenceMeta = {};
-        let lastLatlngs = [];
+        let multipleFlightLatLngs = []; // 複数軌跡データ保持用
+        let recoveredLogsBuffer = []; // 複数ログ追加用バッファ
+        let latestLogLat = null, latestLogLon = null; // 最新ログの現場座標保持用
 
-        window.onload = () => { resizeCanvas(); loadInfo(); updateSignatureImages(); renderInspectionTable(); initLocationAndWeather(); updateLogTable(); };
+        window.onload = () => { resizeCanvas(); loadInfo(); updateSignatureImages(); renderInspectionTable(); updateLogTable(); initLocationAndWeather(); };
 
         function openTab(tabId, btnElement) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -322,7 +329,6 @@
                 if(isBad && remark === '') { hasError = true; document.getElementById(`rem_${item.id}`).style.borderColor = 'red'; } else { document.getElementById(`rem_${item.id}`).style.borderColor = 'var(--border)'; }
             });
             if(hasError) { alert('【警告】「不良」の項目があります。安全確保のため、摘要欄に「処置内容（部品交換など）」を入力してください。'); return; }
-            // 点検表はhtml2pdfを使う（バグが出にくい表組みのため）※今回は軌跡マップのみ修正
             sharePDF('print-check-area', 'InspectionLog');
         }
 
@@ -341,13 +347,15 @@
                     map.setView([lat, lon], 15);
                 }
                 
+                // ★出力タブ用マップ初期化（ログ座標があれば現場を優先）
                 if(!exportMap) {
+                    const initLat = latestLogLat || lat;
+                    const initLon = latestLogLon || lon;
                     const stdMapExp = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { maxZoom: 18, crossOrigin: true });
-                    exportMap = L.map('export-map', { zoomControl: false, attributionControl: false, preferCanvas: true, layers: [stdMapExp] }).setView([lat, lon], 15);
+                    // dragging等の制限を外し、手動でスクロール（アプローチB）できるようにする
+                    exportMap = L.map('export-map', { zoomControl: true, attributionControl: false, preferCanvas: true, layers: [stdMapExp] }).setView([initLat, initLon], 15);
                     L.control.scale({imperial: false, metric: true}).addTo(exportMap);
-                    L.marker([lat, lon]).addTo(exportMap);
-                } else {
-                    exportMap.setView([lat, lon], 15);
+                    L.marker([initLat, initLon]).addTo(exportMap);
                 }
             };
 
@@ -405,40 +413,87 @@
             updateLogTable();
         }
         function formatTimeFromSeconds(totalSec) { const h = Math.floor(totalSec / 3600), m = Math.floor((totalSec % 3600) / 60), s = totalSec % 60; if (h > 0) return `${h}時間 ${m}分 ${s}秒`; if (m > 0) return `${m}分 ${s}秒`; return `${s}秒`; }
+        
         function updateLogTable() {
-            const allLogs = JSON.parse(localStorage.getItem('uav_logs') || '[]'), todayStr = new Date().toLocaleDateString('ja-JP'), tbody = document.getElementById('logBody'); tbody.innerHTML = '';
+            const allLogs = JSON.parse(localStorage.getItem('uav_logs') || '[]');
+            const todayStr = new Date().toLocaleDateString('ja-JP');
+            const tbody = document.getElementById('logBody');
+            tbody.innerHTML = '';
+            
             let totalSecondsAllTime = 0, totalSecondsToday = 0;
-            allLogs.forEach(log => { const sec = log.durationSec !== undefined ? log.durationSec : (log.duration * 60); totalSecondsAllTime += sec;
+            latestLogLat = null;
+            latestLogLon = null;
+
+            allLogs.forEach(log => {
+                const sec = log.durationSec !== undefined ? log.durationSec : (log.duration * 60);
+                totalSecondsAllTime += sec;
+                
+                // ★ ログの中に座標が含まれていれば最新座標を保持（現場マップへの自動ワープ用）
+                if (log.location && log.location !== "位置情報なし" && !log.location.includes("エラー")) {
+                    const match = log.location.match(/北緯([\d.]+),東経([\d.]+)/);
+                    if (match) {
+                        latestLogLat = parseFloat(match[1]);
+                        latestLogLon = parseFloat(match[2]);
+                    }
+                }
+
                 if(log.date === todayStr) { 
                     totalSecondsToday += sec; 
                     const badge = log.verified ? '<br><span style="color:#28a745; font-size:10px; font-weight:bold;">[✅システム検証済]</span>' : '';
                     tbody.appendChild(Object.assign(document.createElement('tr'), {innerHTML:`<td style="font-size:11px;">${log.date}${badge}</td><td style="font-size:11px;">${log.takeoff}</td><td style="font-size:11px;">${log.landing}</td><td style="font-size:11px;">${formatTimeFromSeconds(sec)}</td>`})); 
                 } 
             });
-            document.getElementById('today-time').innerText = formatTimeFromSeconds(totalSecondsToday); document.getElementById('total-accumulated-time').innerText = formatTimeFromSeconds(totalSecondsAllTime);
-        }
-        
-        let recoveredLogData = null;
-
-        function parseDJICSV(event) {
-            const file = event.target.files[0]; if (!file) return;
-            const nameMatch = file.name.match(/(\d{4}-\d{2}-\d{2})_\[(\d{2})-(\d{2})-(\d{2})\]/);
-            if (!nameMatch) { alert("DJI純正のCSV形式(ExportCSV_...)ではありません。ファイル名から日時が取得できませんでした。"); return; }
             
-            const takeoffDateStr = new Date(`${nameMatch[1].replace(/-/g, '/')} ${nameMatch[2]}:${nameMatch[3]}:${nameMatch[4]}`).toLocaleDateString('ja-JP');
-            const takeoffTimeStr = `${nameMatch[2]}:${nameMatch[3]}:${nameMatch[4]}`;
-            const takeoffTimeMs = new Date(`${nameMatch[1].replace(/-/g, '/')} ${nameMatch[2]}:${nameMatch[3]}:${nameMatch[4]}`).getTime();
+            document.getElementById('today-time').innerText = formatTimeFromSeconds(totalSecondsToday);
+            document.getElementById('total-accumulated-time').innerText = formatTimeFromSeconds(totalSecondsAllTime);
 
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const lines = e.target.result.split('\n').filter(l => l.trim() !== '');
-                if (lines.length < 2) return;
+            // ★ 出力マップが初期化済みなら、最新の現場座標へワープさせる
+            if (latestLogLat && latestLogLon && exportMap) {
+                exportMap.setView([latestLogLat, latestLogLon], 16);
+                let markerFound = false;
+                exportMap.eachLayer(layer => {
+                    if (layer instanceof L.Marker) {
+                        layer.setLatLng([latestLogLat, latestLogLon]);
+                        markerFound = true;
+                    }
+                });
+                if(!markerFound) L.marker([latestLogLat, latestLogLon]).addTo(exportMap);
+            }
+        }
+
+        // --- ★ マルチファイル一括読込と色分け処理 ---
+        async function parseDJICSV(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+
+            recoveredLogsBuffer = [];
+            multipleFlightLatLngs = [];
+            let totalDurationSec = 0;
+            let baseDateStr = "";
+
+            // 軌跡を描画する際のプリセットカラー
+            const routeColors = ['#dc3545', '#007bff', '#28a745', '#fd7e14', '#6f42c1', '#17a2b8', '#e83e8c', '#20c997'];
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const nameMatch = file.name.match(/(\d{4}-\d{2}-\d{2})_\[(\d{2})-(\d{2})-(\d{2})\]/);
+                if (!nameMatch) continue; // DJI形式でないファイルはスキップ
+                
+                const takeoffDateStr = new Date(`${nameMatch[1].replace(/-/g, '/')} ${nameMatch[2]}:${nameMatch[3]}:${nameMatch[4]}`).toLocaleDateString('ja-JP');
+                const takeoffTimeStr = `${nameMatch[2]}:${nameMatch[3]}:${nameMatch[4]}`;
+                const takeoffTimeMs = new Date(`${nameMatch[1].replace(/-/g, '/')} ${nameMatch[2]}:${nameMatch[3]}:${nameMatch[4]}`).getTime();
+
+                if (baseDateStr === "") baseDateStr = takeoffDateStr;
+
+                const text = await file.text();
+                const lines = text.split('\n').filter(l => l.trim() !== '');
+                if (lines.length < 2) continue;
                 
                 let maxCount = 0;
-                lastLatlngs = []; 
+                let latlngs = []; 
 
-                for (let i = 1; i < lines.length; i++) {
-                    const cols = lines[i].trim().split(/\s+|,/);
+                for (let j = 1; j < lines.length; j++) {
+                    const cols = lines[j].trim().split(/\s+|,/);
                     if (cols.length >= 3) {
                         const count = parseInt(cols[0], 10);
                         const lat = parseFloat(cols[1]);
@@ -446,104 +501,127 @@
                         
                         if (!isNaN(count)) maxCount = Math.max(maxCount, count);
                         if (!isNaN(lat) && !isNaN(lon) && lat !== 0 && lon !== 0) {
-                            lastLatlngs.push([lat, lon]);
+                            latlngs.push([lat, lon]);
                         }
                     }
                 }
                 
                 const durationSec = Math.round(maxCount / 10);
+                totalDurationSec += durationSec;
                 const landingTimeStr = new Date(takeoffTimeMs + durationSec * 1000).toLocaleTimeString('ja-JP');
                 
                 let locStr = "位置情報なし";
-                if (lastLatlngs.length > 0) {
-                    const mid = lastLatlngs[Math.floor(lastLatlngs.length / 2)];
+                if (latlngs.length > 0) {
+                    const mid = latlngs[Math.floor(latlngs.length / 2)];
                     locStr = `北緯${mid[0].toFixed(4)},東経${mid[1].toFixed(4)}`;
                 }
 
-                const info = JSON.parse(localStorage.getItem('uav_info') || '{}');
-                cachedEvidenceMeta = {
-                    date: takeoffDateStr,
-                    timeRange: `${takeoffTimeStr} ～ ${landingTimeStr} (${formatTimeFromSeconds(durationSec)})`,
-                    pilot: info.pilotName || '未入力',
-                    reg: info.regId || '未入力',
-                    purpose: info.flightPurpose || '未入力'
-                };
-
-                recoveredLogData = { date: takeoffDateStr, takeoff: takeoffTimeStr, landing: landingTimeStr, durationSec: durationSec, location: locStr, weather: "機体ログ(CSV)から自動復元", verified: true };
+                recoveredLogsBuffer.push({ date: takeoffDateStr, takeoff: takeoffTimeStr, landing: landingTimeStr, durationSec: durationSec, location: locStr, weather: "機体ログ(CSV)から自動復元", verified: true });
                 
-                document.getElementById('verify-result').innerHTML = `<div style="background: #d4edda; color: #155724; padding: 10px; border-radius: 6px; margin-top: 15px; font-weight:bold;">✅ CSV解析＆軌跡の抽出 成功</div>`;
-                
-                document.getElementById('recover-map-container').style.display = 'block';
-                document.getElementById('print-evidence-area').style.display = 'block';
-                document.getElementById('btn-add-log').style.display = 'block';
-                document.getElementById('btn-export-evidence').style.display = 'block';
-
-                document.getElementById('evidence-details').innerHTML = `
-                    <strong>実施日:</strong> ${cachedEvidenceMeta.date} <br>
-                    <strong>飛行時刻:</strong> ${cachedEvidenceMeta.timeRange} <br>
-                    <strong>操縦者:</strong> ${cachedEvidenceMeta.pilot} | <strong>機体:</strong> ${cachedEvidenceMeta.reg} <br>
-                    <strong>適用:</strong> ${cachedEvidenceMeta.purpose}
-                `;
-
-                if (!recoverMap) {
-                    const stdMap = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { maxZoom: 18, attribution: "国土地理院", crossOrigin: true });
-                    recoverMap = L.map('recover-map', { zoomControl: true, attributionControl: false, preferCanvas: true, layers: [stdMap] }).setView([35.6812, 139.7671], 15);
-                    L.control.scale({imperial: false, metric: true}).addTo(recoverMap); 
+                if (latlngs.length > 0) {
+                    multipleFlightLatLngs.push({
+                        latlngs: latlngs,
+                        color: routeColors[multipleFlightLatLngs.length % routeColors.length]
+                    });
                 }
-                
-                const polylineLayer = L.polyline(lastLatlngs, {color: 'red', weight: 4, opacity: 0.8});
-                recoverMap.eachLayer(layer => { if (layer instanceof L.Polyline) recoverMap.removeLayer(layer); });
-                polylineLayer.addTo(recoverMap);
-                recoverMap.fitBounds(polylineLayer.getBounds());
-                setTimeout(() => recoverMap.invalidateSize(), 150);
+            }
 
-                // 画面表示用Canvasの描画
-                drawTrajectoryToCanvas(document.getElementById('displayTrajectoryCanvas'), lastLatlngs, 1);
+            if (multipleFlightLatLngs.length === 0) {
+                alert("有効なGPS軌跡データが見つかりませんでした。");
+                return;
+            }
+
+            const info = JSON.parse(localStorage.getItem('uav_info') || '{}');
+            
+            // 複数ファイル読み込み時は、フライト数と総時間を表示する
+            const timeRangeStr = multipleFlightLatLngs.length > 1 
+                ? `計${multipleFlightLatLngs.length}フライト (総飛行時間: ${formatTimeFromSeconds(totalDurationSec)})` 
+                : `${recoveredLogsBuffer[0].takeoff} ～ ${recoveredLogsBuffer[0].landing} (${formatTimeFromSeconds(totalDurationSec)})`;
+
+            cachedEvidenceMeta = {
+                date: baseDateStr,
+                timeRange: timeRangeStr,
+                pilot: info.pilotName || '未入力',
+                reg: info.regId || '未入力',
+                purpose: info.flightPurpose || '未入力'
             };
-            reader.readAsText(file);
+
+            document.getElementById('verify-result').innerHTML = `<div style="background: #d4edda; color: #155724; padding: 10px; border-radius: 6px; margin-top: 15px; font-weight:bold;">✅ ${files.length}件のCSV解析＆軌跡統合 成功</div>`;
+            
+            document.getElementById('recover-map-container').style.display = 'block';
+            document.getElementById('print-evidence-area').style.display = 'block';
+            document.getElementById('btn-add-log').style.display = 'block';
+            document.getElementById('btn-export-evidence').style.display = 'block';
+
+            document.getElementById('evidence-details').innerHTML = `
+                <strong>実施日:</strong> ${cachedEvidenceMeta.date} <br>
+                <strong>飛行内容:</strong> ${cachedEvidenceMeta.timeRange} <br>
+                <strong>操縦者:</strong> ${cachedEvidenceMeta.pilot} | <strong>機体:</strong> ${cachedEvidenceMeta.reg} <br>
+                <strong>適用:</strong> ${cachedEvidenceMeta.purpose}
+            `;
+
+            if (!recoverMap) {
+                const stdMap = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { maxZoom: 18, attribution: "国土地理院", crossOrigin: true });
+                recoverMap = L.map('recover-map', { zoomControl: true, attributionControl: false, preferCanvas: true, layers: [stdMap] }).setView([35.6812, 139.7671], 15);
+                L.control.scale({imperial: false, metric: true}).addTo(recoverMap); 
+            }
+            
+            recoverMap.eachLayer(layer => { if (layer instanceof L.Polyline) recoverMap.removeLayer(layer); });
+            
+            let allLatLngsFlat = [];
+            multipleFlightLatLngs.forEach(flight => {
+                L.polyline(flight.latlngs, {color: flight.color, weight: 4, opacity: 0.8}).addTo(recoverMap);
+                allLatLngsFlat = allLatLngsFlat.concat(flight.latlngs);
+            });
+            
+            if(allLatLngsFlat.length > 0) {
+                recoverMap.fitBounds(L.latLngBounds(allLatLngsFlat));
+            }
+            setTimeout(() => recoverMap.invalidateSize(), 150);
+
+            // 統合した軌跡データをCanvasへ描画
+            drawTrajectoryToCanvas(document.getElementById('displayTrajectoryCanvas'), multipleFlightLatLngs, 1);
         }
 
-        // 共通のCanvas描画ロジック（スケール引数を追加）
-        function drawTrajectoryToCanvas(canvas, latlngs, scale) {
+        // Canvas描画ロジック（複数フライト・色分け対応）
+        function drawTrajectoryToCanvas(canvas, multiFlights, scale) {
             const ctx = canvas.getContext('2d');
             const width = canvas.width;
             const height = canvas.height;
 
-            ctx.fillStyle = '#ffffff'; // PDF出力時は純白背景が安全
+            ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, width, height);
 
-            if (!latlngs || latlngs.length === 0) return;
+            if (!multiFlights || multiFlights.length === 0) return;
 
             let minLat = Infinity, maxLat = -Infinity;
             let minLon = Infinity, maxLon = -Infinity;
 
-            latlngs.forEach(pt => {
-                const lat = pt[0], lon = pt[1];
-                if (lat < minLat) minLat = lat;
-                if (lat > maxLat) maxLat = lat;
-                if (lon < minLon) minLon = lon;
-                if (lon > maxLon) maxLon = lon;
+            // 全フライトを網羅するBoundsを計算
+            multiFlights.forEach(flight => {
+                flight.latlngs.forEach(pt => {
+                    if (pt[0] < minLat) minLat = pt[0];
+                    if (pt[0] > maxLat) maxLat = pt[0];
+                    if (pt[1] < minLon) minLon = pt[1];
+                    if (pt[1] > maxLon) maxLon = pt[1];
+                });
             });
 
             const latSpan = maxLat - minLat || 0.0001;
             const lonSpan = maxLon - minLon || 0.0001;
-
             const padding = 40 * scale;
             const drawWidth = width - padding * 2;
             const drawHeight = height - padding * 2;
-
-            const scaleX = drawWidth / lonSpan;
-            const scaleY = drawHeight / latSpan;
-            const mapScale = Math.min(scaleX, scaleY);
+            const mapScale = Math.min(drawWidth / lonSpan, drawHeight / latSpan);
 
             const offsetX = padding + (drawWidth - lonSpan * mapScale) / 2;
             const offsetY = padding + (drawHeight - latSpan * mapScale) / 2;
 
             const toScreenX = lon => offsetX + (lon - minLon) * mapScale;
-            // 緯度は上が北(大)、Y座標は下が正(大)なので反転させる
+            // 緯度はY軸反転
             const toScreenY = lat => height - (offsetY + (lat - minLat) * mapScale);
 
-            // グリッド線
+            // 背景グリッド線
             ctx.strokeStyle = '#e9ecef';
             ctx.lineWidth = 1 * scale;
             const gridSize = 50 * scale;
@@ -554,47 +632,37 @@
                 ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
             }
 
-            // 軌跡
-            ctx.strokeStyle = '#dc3545';
-            ctx.lineWidth = 4 * scale;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            ctx.beginPath();
+            // 色分けして軌跡を描画
+            multiFlights.forEach(flight => {
+                ctx.strokeStyle = flight.color;
+                ctx.lineWidth = 3 * scale;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.beginPath();
 
-            latlngs.forEach((pt, idx) => {
-                const x = toScreenX(pt[1]);
-                const y = toScreenY(pt[0]);
-                if (idx === 0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
+                flight.latlngs.forEach((pt, idx) => {
+                    const x = toScreenX(pt[1]);
+                    const y = toScreenY(pt[0]);
+                    if (idx === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                });
+                ctx.stroke();
             });
-            ctx.stroke();
 
-            // Start / End マーカー
-            const startX = toScreenX(latlngs[0][1]);
-            const startY = toScreenY(latlngs[0][0]);
-            const endX = toScreenX(latlngs[latlngs.length - 1][1]);
-            const endY = toScreenY(latlngs[latlngs.length - 1][0]);
-
-            ctx.fillStyle = '#28a745';
-            ctx.beginPath(); ctx.arc(startX, startY, 6 * scale, 0, Math.PI * 2); ctx.fill();
-            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2 * scale; ctx.stroke();
-
-            ctx.fillStyle = '#0056b3';
-            ctx.beginPath(); ctx.arc(endX, endY, 6 * scale, 0, Math.PI * 2); ctx.fill();
-            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2 * scale; ctx.stroke();
-
-            ctx.font = `${12 * scale}px sans-serif`;
-            ctx.fillStyle = '#333333';
-            ctx.fillText('▶ 離陸 (Start)', startX + 10 * scale, startY + 4 * scale);
-            ctx.fillText('■ 着陸 (End)', endX + 10 * scale, endY + 4 * scale);
+            // 凡例表示（PDFや画面でフライト数がわかるように）
+            ctx.font = `bold ${12 * scale}px sans-serif`;
+            ctx.fillStyle = '#555555';
+            ctx.fillText(`表示フライト数: ${multiFlights.length}`, 15 * scale, height - 15 * scale);
         }
 
         function addRecoveredLog() {
-            if(!recoveredLogData) return;
-            const logs = JSON.parse(localStorage.getItem('uav_logs') || '[]'); logs.push(recoveredLogData); localStorage.setItem('uav_logs', JSON.stringify(logs));
+            if(recoveredLogsBuffer.length === 0) return;
+            const logs = JSON.parse(localStorage.getItem('uav_logs') || '[]'); 
+            recoveredLogsBuffer.forEach(log => logs.push(log)); // 一括追加
+            localStorage.setItem('uav_logs', JSON.stringify(logs));
             updateLogTable();
-            document.getElementById('verify-result').innerHTML = `<div style="background: #d4edda; color: #155724; padding: 15px; border-radius: 6px; margin-top: 15px; font-weight:bold;">✨ システムへの追加が完了しました。<br>「出力」タブをご確認ください。</div>`;
-            recoveredLogData = null;
+            document.getElementById('verify-result').innerHTML = `<div style="background: #d4edda; color: #155724; padding: 15px; border-radius: 6px; margin-top: 15px; font-weight:bold;">✨ ${recoveredLogsBuffer.length}件のフライトを記録に追加しました。<br>「出力」タブをご確認ください。</div>`;
+            recoveredLogsBuffer = [];
         }
 
         async function shareCSV() {
@@ -605,15 +673,33 @@
             document.body.appendChild(Object.assign(document.createElement("a"), {href: URL.createObjectURL(blob), download: 'FlightLog.csv'})).click();
         }
         
-        // --- ★【v10.15 絶対解決版】フルCanvas・バッファ描画エンジン（文字化け・白紙化を100%排除） ---
+        function sharePDF(elementId, filePrefix) {
+            const element = document.getElementById(elementId); 
+            element.querySelectorAll('input[type="text"]').forEach(i => i.setAttribute('value', i.value));
+            
+            setTimeout(() => {
+                html2pdf().set({ 
+                    margin: 10, 
+                    filename: `${filePrefix}.pdf`, 
+                    image: { type: 'jpeg', quality: 0.98 }, 
+                    html2canvas: { scale: 2, useCORS: true, logging: false }, 
+                    pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } 
+                }).from(element).output('blob').then(async function(blob) {
+                    if (navigator.canShare) { try { await navigator.share({ files: [new File([blob], `${filePrefix}.pdf`, { type: "application/pdf" })] }); return; } catch (e) {} }
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `${filePrefix}.pdf`;
+                    a.click();
+                });
+            }, 300);
+        }
+
+        // --- ★ フルCanvas・バッファ描画エンジン（複数軌跡・色分け対応） ---
         async function exportEvidencePDFFinal() {
             const jsPDFClass = window.jspdf ? window.jspdf.jsPDF : window.jsPDF;
-            if (!jsPDFClass) {
-                alert("PDF生成ライブラリの読み込みに失敗しました。");
-                return;
-            }
+            if (!jsPDFClass) { alert("PDF生成ライブラリの読み込みに失敗しました。"); return; }
 
-            // 1. A4サイズの超高解像度Canvasをメモリ上に動的に生成する (A4比率: 794 x 1123, 印刷品質のため2倍スケール)
             const scale = 2;
             const width = 794 * scale;
             const height = 1123 * scale;
@@ -623,17 +709,16 @@
             canvas.height = height;
             const ctx = canvas.getContext('2d');
 
-            // 2. 背景を白に塗りつぶす
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, width, height);
 
-            // 3. タイトル（日本語）を端末標準のフォントでCanvasに描画する
             ctx.fillStyle = '#333333';
             ctx.textAlign = 'center';
             ctx.font = `bold ${26 * scale}px sans-serif`;
-            ctx.fillText("飛行軌跡エビデンス証明書", width / 2, 80 * scale);
+            // 総括版のニュアンスを込めたタイトル
+            const titleText = multipleFlightLatLngs.length > 1 ? "飛行軌跡エビデンス証明書 (総括版)" : "飛行軌跡エビデンス証明書";
+            ctx.fillText(titleText, width / 2, 80 * scale);
 
-            // 4. タイトル下の装飾ライン
             ctx.strokeStyle = '#17a2b8';
             ctx.lineWidth = 3 * scale;
             ctx.beginPath();
@@ -641,7 +726,6 @@
             ctx.lineTo(width - 50 * scale, 110 * scale);
             ctx.stroke();
 
-            // 5. メタ情報（日本語）をCanvasに描画
             ctx.textAlign = 'left';
             ctx.font = `${14 * scale}px sans-serif`;
             const infoX = 60 * scale;
@@ -649,11 +733,10 @@
             const lineHeight = 30 * scale;
             
             ctx.fillText(`実施日: ${cachedEvidenceMeta.date || '-'}`, infoX, infoY); infoY += lineHeight;
-            ctx.fillText(`飛行時刻: ${cachedEvidenceMeta.timeRange || '-'}`, infoX, infoY); infoY += lineHeight;
+            ctx.fillText(`飛行内容: ${cachedEvidenceMeta.timeRange || '-'}`, infoX, infoY); infoY += lineHeight;
             ctx.fillText(`操縦者: ${cachedEvidenceMeta.pilot || '-'}  |  機体番号: ${cachedEvidenceMeta.reg || '-'}`, infoX, infoY); infoY += lineHeight;
             ctx.fillText(`適用: ${cachedEvidenceMeta.purpose || '-'}`, infoX, infoY); infoY += lineHeight * 2;
 
-            // 6. 地図描画エリアの枠組みを作成
             const mapX = 50 * scale;
             const mapY = infoY;
             const mapWidth = width - 100 * scale;
@@ -665,16 +748,15 @@
             ctx.lineWidth = 1 * scale;
             ctx.strokeRect(mapX, mapY, mapWidth, mapHeight);
 
-            // 7. 地図枠の中に軌跡を正確に描画するためのサブCanvasを生成して転写
-            if (lastLatlngs && lastLatlngs.length > 0) {
+            // サブキャンバスに複数軌跡を描画してメインCanvasに転写
+            if (multipleFlightLatLngs && multipleFlightLatLngs.length > 0) {
                 const subCanvas = document.createElement('canvas');
                 subCanvas.width = mapWidth;
                 subCanvas.height = mapHeight;
-                drawTrajectoryToCanvas(subCanvas, lastLatlngs, scale);
+                drawTrajectoryToCanvas(subCanvas, multipleFlightLatLngs, scale);
                 ctx.drawImage(subCanvas, mapX, mapY);
             }
 
-            // 8. フッター注記（日本語）をCanvasに描画
             ctx.font = `${11 * scale}px sans-serif`;
             ctx.fillStyle = '#666666';
             ctx.textAlign = 'left';
@@ -683,22 +765,22 @@
             ctx.textAlign = 'right';
             ctx.fillText("発行元: UAV Flight Logger Pro (Audit Verified)", width - 50 * scale, height - 40 * scale);
 
-            // 9. 完成した「1枚の画像」を jsPDF にA4サイズで貼り付ける（文字化け・白抜け完全回避）
             const doc = new jsPDFClass({ unit: 'mm', format: 'a4', orientation: 'portrait' });
             const imgData = canvas.toDataURL('image/jpeg', 0.95);
-            doc.addImage(imgData, 'JPEG', 0, 0, 210, 297); // A4の用紙サイズ(210x297mm)にピッタリ配置
+            doc.addImage(imgData, 'JPEG', 0, 0, 210, 297);
 
-            // 10. PDFファイルとして出力
             const pdfBlob = doc.output('blob');
+            const fileName = multipleFlightLatLngs.length > 1 ? 'TotalFlightEvidenceMap.pdf' : 'FlightEvidenceMap.pdf';
+            
             if (navigator.canShare) {
                 try {
-                    await navigator.share({ files: [new File([pdfBlob], 'FlightEvidenceMap.pdf', { type: "application/pdf" })] });
+                    await navigator.share({ files: [new File([pdfBlob], fileName, { type: "application/pdf" })] });
                     return;
                 } catch (e) {}
             }
             const a = document.createElement("a");
             a.href = URL.createObjectURL(pdfBlob);
-            a.download = 'FlightEvidenceMap.pdf';
+            a.download = fileName;
             a.click();
         }
     </script>
